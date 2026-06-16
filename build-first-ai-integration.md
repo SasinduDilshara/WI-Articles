@@ -1,37 +1,29 @@
-# Build Your First AI-Powered Integration with WSO2 Integrator
+# Your First AI Agent on WSO2 Integrator - Customer Support Assistant
 
-A hands-on, build-along tutorial. By the end you will have a working customer-support
-assistant — an AI agent on WSO2 Integrator that answers policy questions from a knowledge
-base (RAG), looks up live order status through a tool, and escalates to a human when it
-can't (or shouldn't) help. You'll build it from an empty machine, one phase at a time,
-and verify each phase before moving on.
+## Introduction
 
-> This tutorial follows the official WSO2 Integrator GenAI documentation. Where the docs
-> and this article describe the same feature, the docs are the source of truth. Links to
-> the relevant pages appear inline so you can go deeper on any step.
+There is a massive buzz around AI agents right now. We are shifting into the agentic enterprise, a space where AI agents does much more than just talk—it thinks, grabs real-time data, and actively runs tasks across the software you already use. It is all about killing busywork and making our jobs significantly easier. Everything sounds perfect, right up until someone asks the hard question — `how do I actually build one without drowning in glue code and brittle SDKs?`
+
+That's where [WSO2 Integrator](https://wso2.com/integration-platform/docs/genai/overview) comes in,
+and makes it easy: AI agents, RAG, vector stores, and LLM providers come built in, wired
+up with built-in connections in the same low-code editor you'd use for any integration, plus an
+expert copilot for iAI integrations. So you can build an AI agent that does real work, connected to real data and tools, with less effort and time.
+
+Lets discover how to build your first AI agent on WSO2 Integrator, step by step, in this tutorial. No prior experience with AI agents is needed — just follow along and you'll have a working AI Agent at the end, plus the confidence to build your own.
 
 ---
 
-## What we're building
+## What we are going to build
 
-**VoltMart** is a fictional online consumer-electronics store (headphones, speakers,
-laptops, accessories). Its small support team is drowning in repetitive questions about
-shipping, returns, warranties, and order status. We'll build an assistant that handles the
-easy, well-defined questions automatically and hands everything else to a human — so the
-team only spends time on cases that actually need a person.
+In this tutorial you'll build a **Customer Support Assistant** — an **AI agent** running on **WSO2 Integrator** — for a fictional electronics shop called **VoltMart**, which sells headphones, speakers, laptops, and the usual accessories.
 
-The assistant has exactly three capabilities, and we build each as its own phase so the
-boundaries stay crisp:
+Like a lot of small stores, VoltMart has a tiny support team and an inbox flooded with the same routine questions every day: `Where's my order? How long do I have to return this? Is it still under warranty?` — answered for the hundredth time this week, while the few cases that genuinely need a person get buried in the pile. The assistant solves exactly that: it sits at the front line of every customer conversation, answers the easy, well-defined questions on its own, looks up a customer's real order details when asked, and steps back the moment a request needs real judgement — handing those cases to a human so the team spends its time only where it's truly needed.
 
-1. **Knowledge (RAG):** answer policy questions from VoltMart's own documents.
-2. **A live tool:** look up real order status, but only after verifying the customer's identity.
-3. **An escalation path:** open a support ticket and hand off to a human in the situations
-   where the assistant must not improvise.
+You'll start from an empty machine and add one capability at a time, checking that each works before moving on. No prior experience with AI agents is needed .By the end you'll have a running assistant that act as an support assitant.
 
 ### Architecture
 
 ![VoltMart Support Assistant architecture: a customer chats with the AI agent, which uses a system prompt and per-session memory to decide between three tools — a knowledge/RAG tool over a knowledge base, a live order-status tool, and an escalate-to-human tool. A startup automation ingests the policy documents into the knowledge base.](voltmart-support/architecture.png)
-
 
 The agent is the decision-maker. On every turn it reads its system prompt, the conversation
 so far, and the customer's message, then decides whether to answer directly, call one of its
@@ -43,7 +35,12 @@ external vector store appear at the end.
 
 ---
 
-## Prerequisites and environment setup
+## Before we start: getting your tools ready
+
+Let's get your machine set up so the rest of the tutorial just flows. This part is a one-time
+thing — install the IDE, sign in, and point it at a model — and we'll confirm each piece works
+before building anything. The whole setup takes only a few minutes, and you won't need any paid
+API keys.
 
 ### 1. Install WSO2 Integrator
 
@@ -95,9 +92,70 @@ accessToken = "<generated-by-the-configure-command>"
 If either is missing, repeat steps 2–3. (A common symptom of a missing config is `bal run`
 failing with *"default model provider not configured"*.)
 
+### 4. Meet WSO2 Integrator Copilot (you'll use it in every phase)
+
+From Phase 1 on, **each phase can be built two ways**, and the article shows both:
+
+- **⚡ With Copilot (fastest path).** In the design view, click **Generate with AI**, describe
+  what you want in plain English, press **Enter**, review the generated artifacts in the
+  preview, and click **Keep** to accept — then refine with follow-up prompts. Copilot proposes
+  a plan, generates the artifacts end-to-end, and opens the visual diagram for you.
+- **🛠 By hand (the reproducible reference).** The numbered designer/code steps that follow the
+  Copilot block. These are the **source of truth**: they produce the exact artifacts and names
+  the later phases depend on.
+
+> **Why keep both?** Copilot generates from a natural-language description, so its output varies
+> run to run and may not match our exact names (`policyKnowledgeBase`, `searchVoltMartPolicies`,
+> …). Use it to move fast, then check the result against the manual steps and fix any difference
+> with a follow-up prompt or a quick edit. Copilot uses the same WSO2 sign-in you did in step 2 —
+> no extra setup. See the official guide:
+> [Build an HTTP service with WSO2 Copilot](https://bi.docs.wso2.com/developer-guides/ai-for-integration/build-an-http-service-with-wso2-copilot/).
+
+> **Prompting tip.** Each Copilot prompt below follows the same simple shape — state the **goal**,
+> name the **artifacts** to create (exactly, e.g. `policyKnowledgeBase`), list the **constraints**,
+> and finish with a **"Done when"** check. Being specific about names and rules is what makes
+> Copilot's output match the tutorial; vague prompts produce vague agents.
+
 ---
 
-## Phase 1 — Create the project and the AI agent
+## Phase 1 — Create the project and give your agent a personality
+
+Every assistant starts as a blank slate. In this first phase we'll create the project, drop in an
+AI agent, and — most importantly — tell it *who it is*: a friendly VoltMart support rep that stays
+on topic and knows its limits. This is the foundation everything else hangs off, so we'll spend a
+little time on the wording that shapes how the agent behaves.
+
+**⚡ With WSO2 Integrator Copilot (fastest path).** Click **Generate with AI**, paste the prompt
+below, press **Enter**, review the preview, and click **Keep**.
+
+```text
+Goal: Create the front-line customer-support chat agent for VoltMart and expose it over HTTP.
+
+Context: VoltMart is an online consumer-electronics store selling headphones, speakers,
+laptops, and accessories. This is the agent customers chat with first.
+
+Create:
+- An AI chat agent named "VoltMartAssistant".
+- Use the default WSO2 model provider (no external API key).
+- Expose it as an HTTP chat service.
+
+Give it this persona and these rules as the system prompt:
+- Friendly, human-sounding, and concise — usually 1 to 3 sentences.
+- Only handles VoltMart topics: orders, products, and policies (shipping, returns, refunds,
+  warranty, payments, account basics). Politely declines anything unrelated.
+- Never invents a policy, price, date, or promise.
+- Never authorizes refunds, discounts, or exceptions.
+- Shares order details only after the customer's identity is verified.
+- Escalates to a human when it cannot help.
+
+Done when: in the Chat panel the agent answers in character and politely declines an
+off-topic question like "What's the capital of France?".
+```
+
+After Copilot creates the agent, open its configuration and replace the **Instructions** with the
+full system prompt in **Step 1.3** — that's the authoritative version with the exact tool-usage and
+escalation rules the later phases depend on. **Prefer to build it by hand, or want to understand
+each piece? Follow the steps below instead.**
 
 ### Step 1.1 — Create the integration project
 
@@ -200,11 +258,43 @@ final ai:Agent voltMartAssistantAgent = check new (
 
 ---
 
-## Phase 2 — Build the knowledge base (RAG)
+## Phase 2 — Teach it the VoltMart playbook (knowledge base + RAG)
 
-The agent should answer policy questions from VoltMart's own documents, not from the model's
-training data. We'll (a) ingest five policy docs into a vector knowledge base, and (b) expose
-retrieval to the agent as a tool.
+Right now the agent can chat, but it doesn't actually *know* anything about VoltMart — ask it about
+the return window and it'll either guess or make something up. Neither is acceptable for support. So
+in this phase we give it a source of truth: VoltMart's own policy documents. The agent will look up
+the answer in those docs before it replies, a pattern called **RAG** (retrieval-augmented
+generation). We'll do it in two moves — load the documents into a searchable knowledge base, then
+hand the agent a tool to search it.
+
+**⚡ With WSO2 Integrator Copilot (fastest path).** First add the five Markdown files to a
+`knowledge_base/` folder (Step 2.1 lists them — Copilot won't write your policy text). Then click
+**Generate with AI**, paste the prompt below, press **Enter**, review the preview, and click **Keep**.
+
+```text
+Goal: Let the VoltMartAssistant agent answer policy questions from VoltMart's own documents
+(retrieval-augmented generation), instead of guessing from the model's training data.
+
+Already done: I added five Markdown policy files under a knowledge_base/ folder.
+
+Create:
+- A vector knowledge base named "policyKnowledgeBase" using:
+  - an in-memory vector store,
+  - the default WSO2 embedding provider,
+  - the AUTO chunker.
+- A startup automation that loads these files and ingests them into policyKnowledgeBase:
+  shipping-and-delivery.md, returns-and-refunds.md, warranty.md,
+  payments-and-billing.md, general-faq.md.
+- A custom tool named "searchVoltMartPolicies", attached to the agent, that:
+  - takes a single query string,
+  - returns the combined text of the top 4 matching chunks from policyKnowledgeBase,
+  - returns the exact string NO_POLICY_FOUND when nothing matches (so the agent can escalate
+    instead of inventing an answer).
+
+Done when: asking "How long do I have to return something?" answers from the returns policy.
+```
+
+**Building it by hand, or want to understand each piece? Follow the steps below.**
 
 ### Step 2.1 — Add the policy documents
 
@@ -286,7 +376,7 @@ public function main() returns error? {
 }
 ```
 
-### Step 2.5 — Expose retrieval to the agent as a tool
+### Step 2.5 — Build an AI Agent tool to search VoltMart's policies
 
 The agent reaches the knowledge base through a **custom tool** that wraps the knowledge base's
 `retrieve` action. Go back to the **AI Chat Agent**, click **+** on the **AI Agent** node →
@@ -345,10 +435,41 @@ More on RAG: [overview](https://wso2.com/integration-platform/docs/genai/develop
 
 ---
 
-## Phase 3 — Add the live order-status tool (with identity verification)
+## Phase 3 — Let it look things up (a live order-status tool)
 
-Now a tool that returns *live* data. We use mock order data so it's self-contained, and we
-**verify identity** (order number + email) before sharing anything.
+Policies are static, but *"where's my order?"* needs a real answer that changes by the hour.
+Knowledge alone can't do that — the agent needs to actually go fetch something. That's what a
+**tool** is: a function the agent can call mid-conversation to get live data. We'll build an
+order-lookup tool here, with one non-negotiable rule baked in — it checks the customer's identity
+before it reveals a single detail. (We'll use mock order data so you can run everything locally with
+no backend.)
+
+**⚡ With WSO2 Integrator Copilot (fastest path).** Click **Generate with AI**, paste the prompt
+below, press **Enter**, review the preview, and click **Keep**.
+
+```text
+Goal: Give the agent a tool to look up live order status — but only after verifying identity.
+
+Create a custom tool named "getOrderStatus", attached to the VoltMartAssistant agent:
+- Inputs: orderNumber and accountEmail.
+- Looks the order up in mock order data (no real backend).
+- Returns the status and ETA ONLY when accountEmail matches the order on file.
+- Returns VERIFICATION_FAILED when the email does not match.
+- Returns ORDER_NOT_FOUND when no order matches the number.
+
+Seed the mock data with three orders:
+- 10432 — jordan@example.com — AirWave Pro headphones — shipped
+- 10588 — priya@example.com — SoundDock 2 speaker — processing
+- 10219 — sam@example.com — VoltBook 14 laptop — delivered
+
+Constraint: the agent must never reveal order details until getOrderStatus confirms the email
+matches, so it should ask for the email before calling the tool.
+
+Done when: "Where's my order #10432?" makes the agent ask for the account email first, then
+report the status only after a matching email is given.
+```
+
+**Building it by hand, or want to understand each piece? Follow the steps below.**
 
 ### Step 3.1 — Add mock order data
 
@@ -374,7 +495,7 @@ final map<Order> & readonly mockOrders = {
 };
 ```
 
-### Step 3.2 — Create the `getOrderStatus` custom tool
+### Step 3.2 — Build an AI Agent tool to get the status of an order
 
 On the **AI Agent** node, **+** → **Create Custom Tool**:
 
@@ -425,12 +546,48 @@ Tool concepts: [Tools](https://wso2.com/integration-platform/docs/genai/develop/
 
 ---
 
-## Phase 4 — Add the custom "escalate to human" tool
+## Phase 4 — Teach it to know its limits (escalate to a human)
 
-This is the safety valve. When the assistant can't or shouldn't answer, it opens a ticket and
-hands off — without promising anything.
+Here's the capability that makes this assistant trustworthy instead of dangerous: knowing when to
+*stop* and get a person. A refund dispute, a cracked-on-arrival speaker, an angry customer — these
+are exactly the moments where a confident-but-wrong AI does real damage. So we'll give the agent a
+graceful exit: a tool that opens a support ticket, reassures the customer a human is coming, and
+crucially, **promises nothing it can't deliver**.
 
-### Step 4.1 — Create the `escalateToHuman` custom tool
+**⚡ With WSO2 Integrator Copilot (fastest path).** Click **Generate with AI**, paste the prompt
+below, press **Enter**, review the preview, and click **Keep**.
+
+```text
+Goal: Give the agent a safe way to hand off to a human by opening a support ticket — without
+promising the customer any outcome.
+
+Create a custom tool named "escalateToHuman", attached to the VoltMartAssistant agent:
+- Captures: customer name, contact, order reference, a short issue summary, and the
+  escalation reason.
+- Returns a confirmation message that includes a generated ticket ID.
+- Must never promise an outcome (no refunds, no guarantees) — only that a human will follow up.
+
+Write a precise tool description so the agent calls escalateToHuman whenever it cannot safely
+resolve the request itself, specifically when:
+- the question isn't covered by the knowledge base and no other tool can answer it,
+- the customer disputes a charge or asks for a refund, discount, or exception to policy,
+- the customer reports a damaged, defective, or wrong item,
+- the customer complains, is clearly frustrated, or uses a serious/legal tone,
+- the customer wants to change or cancel an order,
+- the customer explicitly asks to speak to a human.
+
+Done when: "My speaker arrived cracked and I want a refund" opens a ticket, returns its ID,
+and promises nothing.
+```
+
+> **Callout — review the generated description carefully.** Whether you use Copilot or build by
+> hand, the tool's **description** is what makes the agent actually call it. Copilot's first draft
+> is often too vague ("escalate issues"), which is the #1 reason an agent skips escalation. Compare
+> it against the enumerated triggers in Step 4.1 and tighten it if needed.
+
+**Building it by hand, or want to understand each piece? Follow the steps below.**
+
+### Step 4.1 — Build an AI Agent tool to escalate to a human
 
 On the **AI Agent** node, **+** → **Create Custom Tool**:
 
@@ -513,11 +670,31 @@ Attach all three tools: `tools = [searchVoltMartPolicies, getOrderStatus, escala
 
 ---
 
-## Phase 5 — Add conversation memory
+## Phase 5 — Make it remember the conversation
 
-We want the customer to never repeat themselves. The `ai:Listener` already keeps short-term
-memory per `sessionId` automatically — but we'll add it **explicitly** so we control the window
-size, exactly as the **+ Add Memory** flow does.
+There's nothing more frustrating than a chatbot that forgets what you said two messages ago. Give
+it your order number, and a sentence later it asks for your order number. In this phase we fix that
+by giving the agent **memory**, so it holds on to the customer's name, order number, and the thread
+of the conversation across turns. The `ai:Listener` already keeps a little memory per session
+automatically — but we'll set it up **explicitly** so we control how much it remembers, just as the
+**+ Add Memory** flow does.
+
+**⚡ With WSO2 Integrator Copilot (fastest path).** Click **Generate with AI**, paste the prompt
+below, press **Enter**, review the preview, and click **Keep**.
+
+```text
+Goal: Let the agent remember context within a conversation so customers never repeat themselves.
+
+Create:
+- Add short-term conversation memory to the VoltMartAssistant agent.
+- Use an in-memory store that keeps the last 20 messages per session (keyed by sessionId), so
+  each customer's conversation stays separate.
+
+Done when: I give my name and order number once, and the agent reuses them on later turns
+without asking again.
+```
+
+**Building it by hand, or want to understand each piece? Follow the steps below.**
 
 ### Step 5.1 — Add memory in the designer
 
@@ -575,7 +752,12 @@ More: [Memory](https://wso2.com/integration-platform/docs/genai/develop/agents/m
 
 ---
 
-## Phase 6 — Test against the five conversations
+## Phase 6 — Take it for a spin
+
+This is the fun part — everything's wired up, so let's actually talk to it. Below are five
+conversations that each exercise a different capability you built: answering from the docs, looking
+up an order, and the three flavors of escalation. Run through them and watch the agent decide, on
+its own, when to answer and when to call for help.
 
 Run the project and open the **Chat** panel (or use `curl` against
 `http://localhost:9090/voltMartAssistant/chat` with a JSON body of `{"sessionId": "...", "message": "..."}`).
