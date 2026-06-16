@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 640" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="agentGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff7a59"/>
+      <stop offset="1" stop-color="#f15a36"/>
+    </linearGradient>
+    <linearGradient id="kbGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2f9e7e"/>
+      <stop offset="1" stop-color="#1f7d62"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#5b6470"/>
+    </marker>
+    <marker id="arrowBack" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#2f9e7e"/>
+    </marker>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <!-- Title -->
+  <text x="500" y="40" text-anchor="middle" font-size="26" font-weight="700" fill="#1b2430">VoltMart Support Assistant — Architecture</text>
+  <text x="500" y="64" text-anchor="middle" font-size="14" fill="#5b6470">An AI agent on WSO2 Integrator: answers from a knowledge base, calls a live tool, and escalates to a human</text>
+
+  <!-- Project boundary -->
+  <rect x="220" y="90" width="760" height="525" rx="16" fill="#f7f9fb" stroke="#cdd5de" stroke-dasharray="6 5"/>
+  <text x="240" y="115" font-size="13" font-weight="600" fill="#7a8594">WSO2 Integrator project (single runtime)</text>
+
+  <!-- Customer -->
+  <rect x="20" y="280" width="150" height="90" rx="12" fill="#ffffff" stroke="#cdd5de" filter="url(#shadow)"/>
+  <text x="95" y="312" text-anchor="middle" font-size="16" font-weight="700" fill="#1b2430">Customer</text>
+  <text x="95" y="334" text-anchor="middle" font-size="12" fill="#5b6470">chat / HTTP</text>
+  <text x="95" y="352" text-anchor="middle" font-size="12" fill="#5b6470">message + sessionId</text>
+
+  <!-- Customer -> Agent -->
+  <line x1="170" y1="325" x2="300" y2="245" stroke="#5b6470" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- AI Agent -->
+  <rect x="300" y="150" width="250" height="135" rx="14" fill="url(#agentGrad)" filter="url(#shadow)"/>
+  <text x="425" y="186" text-anchor="middle" font-size="18" font-weight="700" fill="#ffffff">AI Chat Agent</text>
+  <text x="425" y="207" text-anchor="middle" font-size="12.5" fill="#fff" opacity="0.95">the decision-maker</text>
+  <rect x="320" y="222" width="210" height="24" rx="6" fill="#ffffff" opacity="0.18"/>
+  <text x="425" y="239" text-anchor="middle" font-size="12" fill="#ffffff">System prompt · role, scope, escalation rule</text>
+  <rect x="320" y="252" width="210" height="24" rx="6" fill="#ffffff" opacity="0.18"/>
+  <text x="425" y="269" text-anchor="middle" font-size="12" fill="#ffffff">Memory · per sessionId (in-memory)</text>
+
+  <!-- Model provider chip -->
+  <circle cx="565" cy="150" r="26" fill="#ffffff" stroke="#f15a36" stroke-width="2" filter="url(#shadow)"/>
+  <text x="565" y="146" text-anchor="middle" font-size="10.5" font-weight="700" fill="#f15a36">WSO2</text>
+  <text x="565" y="159" text-anchor="middle" font-size="9" fill="#5b6470">model</text>
+  <line x1="550" y1="170" x2="540" y2="180" stroke="#f15a36" stroke-width="2"/>
+
+  <!-- Agent -> tools label -->
+  <text x="425" y="312" text-anchor="middle" font-size="12" font-style="italic" fill="#5b6470">decides which tool to call ↓</text>
+
+  <!-- Three tool boxes -->
+  <!-- RAG tool -->
+  <rect x="245" y="335" width="200" height="95" rx="12" fill="#ffffff" stroke="#cdd5de" filter="url(#shadow)"/>
+  <text x="345" y="362" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2430">RAG tool</text>
+  <text x="345" y="383" text-anchor="middle" font-size="11.5" fill="#5b6470">searchVoltMartPolicies</text>
+  <text x="345" y="402" text-anchor="middle" font-size="11" fill="#7a8594">retrieve policy answers</text>
+  <text x="345" y="418" text-anchor="middle" font-size="11" fill="#7a8594">from the knowledge base</text>
+
+  <!-- Order tool -->
+  <rect x="460" y="335" width="200" height="95" rx="12" fill="#ffffff" stroke="#cdd5de" filter="url(#shadow)"/>
+  <text x="560" y="362" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2430">Order-status tool</text>
+  <text x="560" y="383" text-anchor="middle" font-size="11.5" fill="#5b6470">getOrderStatus</text>
+  <text x="560" y="402" text-anchor="middle" font-size="11" fill="#7a8594">live lookup, only after</text>
+  <text x="560" y="418" text-anchor="middle" font-size="11" fill="#7a8594">identity verification</text>
+
+  <!-- Escalate tool -->
+  <rect x="675" y="335" width="200" height="95" rx="12" fill="#ffffff" stroke="#cdd5de" filter="url(#shadow)"/>
+  <text x="775" y="362" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2430">Escalate-to-human</text>
+  <text x="775" y="383" text-anchor="middle" font-size="11.5" fill="#5b6470">escalateToHuman</text>
+  <text x="775" y="402" text-anchor="middle" font-size="11" fill="#7a8594">open a support ticket,</text>
+  <text x="775" y="418" text-anchor="middle" font-size="11" fill="#7a8594">hand off to a person</text>
+
+  <!-- Agent -> tool connectors -->
+  <line x1="395" y1="285" x2="345" y2="335" stroke="#5b6470" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="445" y1="285" x2="555" y2="335" stroke="#5b6470" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="475" y1="285" x2="745" y2="335" stroke="#5b6470" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Knowledge base -->
+  <rect x="245" y="480" width="200" height="105" rx="12" fill="url(#kbGrad)" filter="url(#shadow)"/>
+  <text x="345" y="512" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">Knowledge base</text>
+  <text x="345" y="533" text-anchor="middle" font-size="11.5" fill="#fff" opacity="0.95">in-memory vector store</text>
+  <text x="345" y="553" text-anchor="middle" font-size="11" fill="#fff" opacity="0.9">WSO2 embeddings · 1536-d</text>
+  <text x="345" y="571" text-anchor="middle" font-size="11" fill="#fff" opacity="0.9">AUTO chunker</text>
+
+  <!-- RAG tool <-> KB -->
+  <line x1="345" y1="430" x2="345" y2="480" stroke="#2f9e7e" stroke-width="2.5" marker-end="url(#arrowBack)"/>
+
+  <!-- Automation / ingestion -->
+  <rect x="600" y="480" width="275" height="105" rx="12" fill="#ffffff" stroke="#cdd5de" filter="url(#shadow)"/>
+  <text x="737" y="508" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2430">Automation (runs on startup)</text>
+  <text x="737" y="529" text-anchor="middle" font-size="11.5" fill="#5b6470">load → chunk → embed → store</text>
+  <text x="737" y="551" text-anchor="middle" font-size="11" fill="#7a8594">5 policy docs: shipping, returns,</text>
+  <text x="737" y="567" text-anchor="middle" font-size="11" fill="#7a8594">warranty, payments, FAQ (Markdown)</text>
+
+  <!-- Automation -> KB ingest -->
+  <line x1="600" y1="532" x2="445" y2="532" stroke="#5b6470" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="522" y="524" text-anchor="middle" font-size="10.5" font-style="italic" fill="#7a8594">ingests</text>
+
+  <!-- Legend -->
+  <text x="240" y="608" font-size="11" fill="#9aa4b0">Default WSO2 model + embedding providers — no third-party API key required</text>
+</svg>

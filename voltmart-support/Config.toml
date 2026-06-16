@@ -1,0 +1,13 @@
+# This file is generated for you when you run the command
+#   "Ballerina: Configure default WSO2 model provider"
+# from the WSO2 Integrator command palette (after signing in to WSO2 Integrator Copilot).
+#
+# Do NOT commit real credentials. The values below are placeholders so you can see
+# the shape of the file — the command writes the real serviceUrl and accessToken.
+#
+# The same WSO2 credentials power BOTH the default model provider (the agent's LLM)
+# and the default embedding provider (used by the knowledge base for RAG).
+
+[ballerina.ai.wso2ProviderConfig]
+serviceUrl = "<generated-by-the-configure-command>"
+accessToken = "<generated-by-the-configure-command>"
