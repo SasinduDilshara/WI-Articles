@@ -8,13 +8,3 @@ type Order record {|
     string status;
     string eta;
 |};
-
-// A support ticket raised by the escalation tool for the human team to pick up.
-type EscalationTicket record {|
-    string ticketId;
-    string customerName;
-    string contact;
-    string orderReference;
-    string issueSummary;
-    string reason;
-|};

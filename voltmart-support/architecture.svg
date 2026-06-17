@@ -21,7 +21,7 @@
 
   <!-- Title -->
   <text x="500" y="40" text-anchor="middle" font-size="26" font-weight="700" fill="#1b2430">VoltMart Support Assistant — Architecture</text>
-  <text x="500" y="64" text-anchor="middle" font-size="14" fill="#5b6470">An AI agent on WSO2 Integrator: answers from a knowledge base, calls a live tool, and escalates to a human</text>
+  <text x="500" y="64" text-anchor="middle" font-size="14" fill="#5b6470">An AI agent on WSO2 Integrator: answers from a knowledge base and calls a live order-status tool</text>
 
   <!-- Project boundary -->
   <rect x="220" y="90" width="760" height="525" rx="16" fill="#f7f9fb" stroke="#cdd5de" stroke-dasharray="6 5"/>
@@ -41,7 +41,7 @@
   <text x="425" y="186" text-anchor="middle" font-size="18" font-weight="700" fill="#ffffff">AI Chat Agent</text>
   <text x="425" y="207" text-anchor="middle" font-size="12.5" fill="#fff" opacity="0.95">the decision-maker</text>
   <rect x="320" y="222" width="210" height="24" rx="6" fill="#ffffff" opacity="0.18"/>
-  <text x="425" y="239" text-anchor="middle" font-size="12" fill="#ffffff">System prompt · role, scope, escalation rule</text>
+  <text x="425" y="239" text-anchor="middle" font-size="12" fill="#ffffff">System prompt · role, scope, guardrails</text>
   <rect x="320" y="252" width="210" height="24" rx="6" fill="#ffffff" opacity="0.18"/>
   <text x="425" y="269" text-anchor="middle" font-size="12" fill="#ffffff">Memory · per sessionId (in-memory)</text>
 
@@ -54,7 +54,7 @@
   <!-- Agent -> tools label -->
   <text x="425" y="312" text-anchor="middle" font-size="12" font-style="italic" fill="#5b6470">decides which tool to call ↓</text>
 
-  <!-- Three tool boxes -->
+  <!-- Two tool boxes -->
   <!-- RAG tool -->
   <rect x="245" y="335" width="200" height="95" rx="12" fill="#ffffff" stroke="#cdd5de" filter="url(#shadow)"/>
   <text x="345" y="362" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2430">RAG tool</text>
@@ -69,17 +69,9 @@
   <text x="560" y="402" text-anchor="middle" font-size="11" fill="#7a8594">live lookup, only after</text>
   <text x="560" y="418" text-anchor="middle" font-size="11" fill="#7a8594">identity verification</text>
 
-  <!-- Escalate tool -->
-  <rect x="675" y="335" width="200" height="95" rx="12" fill="#ffffff" stroke="#cdd5de" filter="url(#shadow)"/>
-  <text x="775" y="362" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2430">Escalate-to-human</text>
-  <text x="775" y="383" text-anchor="middle" font-size="11.5" fill="#5b6470">escalateToHuman</text>
-  <text x="775" y="402" text-anchor="middle" font-size="11" fill="#7a8594">open a support ticket,</text>
-  <text x="775" y="418" text-anchor="middle" font-size="11" fill="#7a8594">hand off to a person</text>
-
   <!-- Agent -> tool connectors -->
-  <line x1="395" y1="285" x2="345" y2="335" stroke="#5b6470" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="405" y1="285" x2="345" y2="335" stroke="#5b6470" stroke-width="2" marker-end="url(#arrow)"/>
   <line x1="445" y1="285" x2="555" y2="335" stroke="#5b6470" stroke-width="2" marker-end="url(#arrow)"/>
-  <line x1="475" y1="285" x2="745" y2="335" stroke="#5b6470" stroke-width="2" marker-end="url(#arrow)"/>
 
   <!-- Knowledge base -->
   <rect x="245" y="480" width="200" height="105" rx="12" fill="url(#kbGrad)" filter="url(#shadow)"/>
