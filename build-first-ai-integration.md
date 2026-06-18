@@ -17,21 +17,27 @@ Lets discover how to build your first AI agent on WSO2 Integrator, step by step,
 
 In this tutorial you'll build a **Customer Support Assistant** — an **AI agent** running on **WSO2 Integrator** — for a fictional electronics shop called **VoltMart**, which sells headphones, speakers, laptops, and the usual accessories.
 
-Like a lot of small stores, VoltMart has a tiny support team and an inbox flooded with the same routine questions every day: `Where's my order? How long do I have to return this? Is it still under warranty?` — answered for the hundredth time this week, while the few cases that genuinely need a person get buried in the pile. The assistant solves exactly that: it sits at the front line of every customer conversation, answers the easy, well-defined questions on its own, looks up a customer's real order details when asked, and steps back the moment a request needs real judgement — politely pointing the customer to VoltMart's support team so staff spend their time only where it's truly needed.
+Like a lot of small stores, VoltMart has a tiny support team and an inbox flooded with the same routine questions every day: `How long do I have to return this? Is it still under warranty? What payment methods do you take?` — answered for the hundredth time this week, while the few cases that genuinely need a person get buried in the pile. The assistant solves exactly that: it sits at the front line of every customer conversation, answers the easy, well-defined questions on its own — grounded in VoltMart's own policy documents — and steps back the moment a request needs real judgement, politely pointing the customer to VoltMart's support team so staff spend their time only where it's truly needed.
 
-You'll start from an empty machine and add one capability at a time, checking that each works before moving on. No prior experience with AI agents is needed .By the end you'll have a running assistant that act as an support assitant.
+You'll start from an empty machine and add one capability at a time, checking that each works before moving on. No prior experience with AI agents is needed. By the end you'll have a running assistant that acts as a front-line support agent.
+
+> **This is part 1 of a three-part series.** Here we build the foundation: an agent that answers policy questions from a knowledge base and knows when to step back. In **[part 2](connect-live-data-with-mcp.md)** we connect it to a live orders backend over **MCP** (Model Context Protocol) so it can look up real order data, and in **[part 3](push-live-notifications-with-webhooks.md)** we add **live order-status notifications** over a webhook. Each part builds directly on the previous one.
 
 ### Architecture
 
-![VoltMart Support Assistant architecture: a customer chats with the AI agent, which uses a system prompt and per-session memory to decide between two tools — a knowledge/RAG tool over a knowledge base and a live order-status tool. A startup automation ingests the policy documents into the knowledge base.](voltmart-support/architecture.png)
+![VoltMart Support Assistant architecture: a customer chats with the AI agent, which uses a system prompt and per-session memory to decide when to call its knowledge/RAG tool over a policy knowledge base. A startup automation ingests the policy documents into the knowledge base.](voltmart-support/architecture.png)
 
 Everything centres on the **AI agent**. A customer's message comes in, and the agent — guided by
 the instructions you give it — works out what the customer actually wants and routes the request
-to the right place. Straightforward questions about **VoltMart's policies** it answers on its own.
-When a customer asks about their **specific order**, it reaches out for the live details, checking
-the customer's identity first. And when a request is beyond what it should decide alone, it steps
+to the right place. Straightforward questions about **VoltMart's policies** (shipping, returns,
+refunds, warranty, billing) it answers on its own, grounding every reply in VoltMart's own
+documents rather than guessing. And when a request is beyond what it should decide alone, it steps
 back, **declines politely, and points the customer to VoltMart's support team**. All the while it
 remembers what's been said, so the customer never has to repeat themselves.
+
+That foundation is exactly what this first article delivers end to end. The **next two articles in
+the series** then extend the very same agent: part 2 gives it a **live orders backend over MCP**, and
+part 3 adds **live order-status notifications over a webhook**.
 
 You'll learn how to build each piece in the steps that follow.
 
@@ -152,11 +158,11 @@ SCOPE
 
 USING YOUR TOOLS
 - For ANY question about VoltMart policy (shipping, delivery, returns, refunds, warranty, payments, billing, how to track an order, account basics), call searchVoltMartPolicies FIRST and answer only from what it returns. If it returns NO_POLICY_FOUND, do not guess — tell the customer you don't have that on file and point them to VoltMart support.
-- For order status, you need BOTH the order number AND the account email. If you are missing either, ask for it. Then call getOrderStatus. Never reveal order details unless the tool confirms the email matches the order (identity verification). If the tool returns VERIFICATION_FAILED or ORDER_NOT_FOUND, tell the customer politely and do not invent a status.
 
 WHEN YOU CAN'T HELP
 You cannot fully resolve every request yourself. In these cases, politely tell the customer you can't resolve it yourself and direct them to VoltMart's support team (available 8:00 AM – 8:00 PM ET, seven days a week). NEVER promise a specific outcome (no "you'll get a refund"). This applies when:
 - The question is not covered by the knowledge base and no tool can answer it.
+- The customer asks for the live status of a specific order — you cannot look orders up yet, so share the self-service tracking steps from the policy docs and point them to VoltMart support if they need more.
 - The customer disputes a charge, or asks for a refund, discount, or any exception to policy.
 - The customer reports a damaged, defective, or wrong item.
 - There is a complaint, a serious or legal tone, or clear frustration.
@@ -166,7 +172,7 @@ You cannot fully resolve every request yourself. In these cases, politely tell t
 GUARDRAILS
 - Never invent a policy, price, date, or promise. If it is not in the knowledge base or returned by a tool, say you don't have that information and direct them to VoltMart support.
 - Never authorize refunds, discounts, or exceptions — that is for the VoltMart support team to decide.
-- Never reveal another customer's information; share order details only after identity is verified.
+- Never reveal another customer's information or account details.
 ```
 
 Select **Save**.
@@ -283,108 +289,18 @@ So the flow is short:
 More on the query side of RAG: [RAG query](https://wso2.com/integration-platform/docs/genai/develop/rag/rag-query).
 More on tools: [Tools](https://wso2.com/integration-platform/docs/genai/develop/agents/tools).
 
----
-
-### Phase 3 — Let it look things up (a live order-status tool)
-
-The agent now has its own system instructions and a `searchVoltMartPolicies` tool to ground its answers in VoltMart's docs. But policy questions are only half of what customers ask, in real world they also ask about their *own* orders: *"What's the status of my order now?"* The knowledge base can't answer that because holds static policy text, while an order's status changes by the hour and is different for every customer. So we give the agent a second tool — one that fetches live data instead of searching docs.
-
-**⚡ With WSO2 Integrator Copilot (fastest path).** Click **Generate with AI**, paste the prompt
-below, press **Enter**, review the preview, and click **Keep**.
-
-```text
-Goal: Give the agent a tool to look up live order status — but only after verifying identity.
-
-Create a custom tool named "getOrderStatus", attached to the VoltMartAssistant agent:
-- Inputs: orderNumber and accountEmail.
-- Looks the order up in mock order data (no real backend).
-- Returns the status and ETA ONLY when accountEmail matches the order on file.
-- Returns VERIFICATION_FAILED when the email does not match.
-- Returns ORDER_NOT_FOUND when no order matches the number.
-
-Seed the mock data with three orders:
-- 10432 — jordan@example.com — AirWave Pro headphones — shipped
-- 10588 — priya@example.com — SoundDock 2 speaker — processing
-- 10219 — sam@example.com — VoltBook 14 laptop — delivered
-
-Constraint: the agent must never reveal order details until getOrderStatus confirms the email
-matches, so it should ask for the email before calling the tool.
-
-Done when: "Where's my order #10432?" makes the agent ask for the account email first, then
-report the status only after a matching email is given.
-```
-
-**Building it by hand, or want to understand each piece? Follow the steps below.**
-
-#### Step 3.1 — Add mock order data
-
-In the real world this data would come from a production order API backed by a database. For
-this demo, though, we'll keep things simple and use a small in-memory array of mock orders to
-look up — so we can focus on the agent instead of wiring up a backend.
-
-The order-status tool needs an order type and some stand-in orders to look up. Let WSO2 Integrator Copilot create them for you: click **Generate with AI**, paste the prompt below,
-press **Enter**, review the preview, and click **Keep**.
-
-```text
-Create the data model and mock order data for VoltMart's order-status tool.
-
-Define a record type named "Order" with these string fields:
-- orderNumber
-- accountEmail (used for identity verification)
-- item
-- status (one of: processing, shipped, or delivered)
-- eta (a human-readable delivery estimate)
-
-Then create a constant, read-only collection of orders keyed by order number, acting as a
-stand-in for a real order system. Seed it with these three orders:
-- 10432 — jordan@example.com — AirWave Pro wireless headphones — shipped — arriving Thursday, 18 June 2026
-- 10588 — priya@example.com — SoundDock 2 Bluetooth speaker — processing — ships within 1 business day
-- 10219 — sam@example.com — VoltBook 14 laptop — delivered — delivered on 9 June 2026
-
-The collection should be easy to look up by order number so the order-status tool can fetch a
-single order directly.
-```
-
-#### Step 3.2 — Build an AI Agent tool to get the status of an order
-
-Now we build the `getOrderStatus` [**custom tool**](https://wso2.com/integration-platform/docs/genai/develop/agents/tools) the system prompt already references — the tool the agent needs to look up the status of a customer's order. Like `searchVoltMartPolicies`, it's how the agent reaches data it can't see on its own — but instead of searching the knowledge base, it looks the order up in the `mockOrders` collection from [Step 3.1](#step-31--add-mock-order-data) and **verifies identity first**, returning one of three answers: the order status, `VERIFICATION_FAILED`, or `ORDER_NOT_FOUND`.
-
-**Add the tool.** Go back to the **AI Chat Agent**. On the **AI Agent** node click **+** →
-**Create Custom Tool**, then fill in the form:
-
-1. **Name:** `getOrderStatus` — must match the name used in the system prompt exactly, since the agent picks a tool from its **name + description**.
-2. **Description:** what the agent reads to decide *when* to call this tool — this is what makes the agent ask for the missing email instead of guessing. Paste in:
-
-   ```
-   Look up the live status of a VoltMart order. Call this for any question about a specific order (e.g. "where's my order", "has it shipped", "when will it arrive"). You MUST have BOTH the order number AND the account email before calling — if either is missing, ask the customer for it first. Order details are revealed ONLY when the email matches the order on file; the tool returns "VERIFICATION_FAILED" if it does not, or "ORDER_NOT_FOUND" if no order matches the number.
-   ```
-3. **Parameters:** click **+ Add Parameter** twice and add two `string` parameters:
-   - `orderNumber` — *"The order number the customer is asking about."*
-   - `accountEmail` — *"The email on the customer's VoltMart account, used to verify their identity before revealing order details."*
-4. **Return Type:** `string` — the status line we feed back to the agent, or one of the `VERIFICATION_FAILED` / `ORDER_NOT_FOUND` signals. As in Step 2.5, any supported type works here, but a simple string is enough.
-5. Click **Create**. WSO2 Integrator opens an **empty flow diagram** for the tool implementation — this is the body of `getOrderStatus`, where we wire up the lookup and the identity check.
-
-So the flow is short — three guards, in order:
-
-**⚡ With WSO2 Integrator Copilot (fastest path).** Instead of placing the nodes by hand, click **Generate with AI** in the tool flow and describe the logic — for example: *"Look up `orderNumber` in `mockOrders`; return `\"ORDER_NOT_FOUND\"` if it isn't there; otherwise compare the order's `accountEmail` to the `accountEmail` parameter and return `\"VERIFICATION_FAILED\"` if they differ; otherwise return a sentence with the item, status, and ETA."* Review the generated flow and click **Keep**.
-
-**Prefer to place the nodes by hand?** Build it node by node on the flow line:
-
-1. **Guard the unknown order.** On the flow line, click **+** → **If**, with the condition `!mockOrders.hasKey(orderNumber)`. In the **then** branch, click **+** → **Return** and return `"ORDER_NOT_FOUND"`. This way the agent gets an explicit signal for an order number that doesn't exist, instead of a blank string it might paper over.
-2. **Fetch the order.** On the main (else) line, click **+** → **Variable**. Set **Name** to `order`, **Type** to `Order`, and **Value** to `mockOrders.get(orderNumber)`. This pulls the single matching order out of the collection from Step 3.1.
-3. **Verify identity.** Click **+** → **If**, with the condition `order.accountEmail != accountEmail`. In the **then** branch, click **+** → **Return** and return `"VERIFICATION_FAILED"` — the email doesn't match the order on file, so we refuse to reveal anything. This is the rule the system prompt depends on.
-4. **Return the status.** After the verification check, click **+** → **Return** and return a status line built from the order, for example `string `Order ${orderNumber} (${order.item}) is ${order.status} — ${order.eta}.``. This is the only path that exposes order details, and it's only reachable once the email has matched.
-
-[SCREENSHOT: Chat showing the email request, then the verified order status.]
-
-Tool concepts: [Tools](https://wso2.com/integration-platform/docs/genai/develop/agents/tools).
+> **Where do live order lookups go?** You might have noticed the system prompt deliberately tells
+> the agent it *cannot* look up a specific order's live status yet — for now it falls back to the
+> self-service tracking steps in the policy docs. That's intentional: looking up real order data
+> belongs to a real backend, not the knowledge base. We give the agent exactly that capability in
+> **[part 2 of this series](connect-live-data-with-mcp.md)**, where it talks to a live orders service over **MCP**.
 
 ---
 
-### Phase 4 — Make it remember the conversation
+### Phase 3 — Make it remember the conversation
 
-There's nothing more frustrating than a chatbot that forgets what you just told it — you hand over
-your order number, and a sentence later it asks for it again. The good news is that you don't have
+There's nothing more frustrating than a chatbot that forgets what you just told it — you give it your
+name or the email on your account, and a sentence later it asks for it again. The good news is that you don't have
 to build anything to avoid this. The initial AI Agent that created from the WSO2 Integrator
 [Step 1.2](#step-12--add-the-ai-chat-agent) ships with **built-in short-term memory** out of the
 box, so it already remembers everything in the conversation — including the customer's name, order number, and any other details they shared — without you having to do any extra work.
@@ -393,14 +309,15 @@ conversations that don't need to outlive a restart. If you need memory that **pe
 restarts, or shared across instances by backing it with an external store such as MSSQL — follow the
 [Memory guide](https://wso2.com/integration-platform/docs/genai/develop/agents/memory) to configure
 a persistent short-term memory store in WSO2 Integrator.
+
 ---
 
-### Phase 5 — Take it for a spin
+### Phase 4 — Take it for a spin
 
-This is the fun part — everything's wired up, so let's actually talk to it. Below are four
-conversations that each exercise a different capability you built: answering from the docs, looking
-up an order, and gracefully declining when a request is beyond what it should handle. Run through
-them and watch the agent decide, on its own, when to answer and when to step back.
+This is the fun part — everything's wired up, so let's actually talk to it. Below are two
+conversations that each exercise a different capability you built: answering from the docs, and
+gracefully declining when a request is beyond what it should handle. Run through them and watch the
+agent decide, on its own, when to answer and when to step back.
 
 Run the project using the `Run` button in the top right and open the **Chat** panel (or use `curl` against
 `http://localhost:9090/voltMartAssistant/chat` with a JSON body of `{"sessionId": "...", "message": "..."}`).
@@ -431,51 +348,7 @@ curl -X POST http://localhost:9090/voltMartAssistant/chat \
 
 *Expected behavior:* calls `searchVoltMartPolicies`, answers from the returns policy, stays brief.
 
-#### Sample 2 Test — Live lookup (with identity verification)
-
-Ask about an order and the agent verifies the email before sharing any details. Keep the **same `sessionId`** across both calls so it remembers the order number you gave it.
-
-**Input (turn 1 — ask for the order):**
-
-```bash
-curl -X POST http://localhost:9090/voltMartAssistant/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "sessionId": "sample-2",
-    "message": "Where'\''s my order #10432?"
-  }'
-```
-
-**Output (turn 1 — asks to verify):**
-
-```json
-{
-  "message": "Happy to check! Can you confirm the email on your VoltMart account?"
-}
-```
-
-**Input (turn 2 — provide the email):**
-
-```bash
-curl -X POST http://localhost:9090/voltMartAssistant/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "sessionId": "sample-2",
-    "message": "jordan@example.com"
-  }'
-```
-
-**Output (turn 2 — reports status + ETA):**
-
-```json
-{
-  "message": "Thanks, Jordan — order #10432 (AirWave Pro wireless headphones) has shipped and is arriving Thursday, 18 June 2026."
-}
-```
-
-*Expected behavior:* asks for the email first, calls `getOrderStatus`, reports status + ETA only after the email matches.
-
-#### Sample 3 Test — Policy exception (graceful decline)
+#### Sample 2 Test — Policy exception (graceful decline)
 
 Ask for something the agent isn't allowed to grant — a refund or an exception to policy — and it declines without overpromising, pointing you to the support team. Reuse the **same `sessionId`** so it stays in the same conversation when you push back on the second turn.
 
@@ -519,27 +392,39 @@ curl -X POST http://localhost:9090/voltMartAssistant/chat \
 
 *Expected behavior:* calls `searchVoltMartPolicies`, recognizes the request is an exception it can't authorize, declines politely, and directs the customer to support — without promising a refund.
 
-[SCREENSHOT: The Chat panel running conversation 3, showing the graceful decline.]
+[SCREENSHOT: The Chat panel running conversation 2, showing the graceful decline.]
 
 ---
 
-## Next steps
+## What's next in the series
 
-You deliberately left these out of the first build — they're where to go next:
+You now have a working front-line agent that answers policy questions from a knowledge base and
+knows when to step back. That's a complete, useful assistant on its own — but it can't yet see a
+single byte of *live* data. That's exactly what the next two parts add, building directly on the
+project you just created:
+
+- **Part 2 — Give it live order data over MCP.** Right now the agent can't look up a real order. In
+  part 2 we stand up a proper **orders backend**: a Ballerina **MCP service** with `getStatus`,
+  `createOrder`, and `removeOrder` tools, backed by a **live PostgreSQL database running in Docker**.
+  Then we connect that MCP service to this same agent as a **toolkit** — so the agent gains every one
+  of those tools at once, with no extra glue code. See
+  [Building a customer care agent with MCP](https://wso2.com/integration-platform/docs/genai/tutorials/building-a-customer-care-agent-mcp).
+- **Part 3 — Push live notifications over a webhook.** In part 3 we add an order **status-change**
+  tool that fires a **webhook** the moment an order moves from *processing* → *shipped* → *delivered*,
+  so customers get a live notification instead of having to ask. Then we hand that tool to the agent
+  too.
+
+And a few directions beyond the series, when you take this to production:
 
 - **Human handoff / real refunds.** This build politely points customers to support and never
   lets the agent move money. A real build would add a [connector-based tool](https://wso2.com/integration-platform/docs/genai/develop/agents/tools)
   to open tickets in a helpdesk for the support team to action.
-- **Multiple connected backends.** Swap `mockOrders` for a real order system using a database or
-  API connection (**Use Connection** when adding a tool).
 - **A durable / external vector store.** The in-memory store resets on restart. For production,
   use Pinecone, pgvector, Weaviate, or Milvus (configure the index for 1536-dim vectors) and you
   can split ingestion and serving into separate processes.
 - **Persistent memory.** Swap the in-memory store for the MSSQL short-term memory store so
   conversations survive restarts — see [Memory](https://wso2.com/integration-platform/docs/genai/develop/agents/memory)
   and the [IT helpdesk tutorial](https://wso2.com/integration-platform/docs/genai/tutorials/it-helpdesk-chatbot).
-- **Multi-agent handoffs and MCP.** Expose this agent's tools over MCP, or route to specialist
-  agents — see [Building a customer care agent with MCP](https://wso2.com/integration-platform/docs/genai/tutorials/building-a-customer-care-agent-mcp).
 - **Evaluation & observability.** Turn on **Tracing** (OpenTelemetry) to inspect tool calls, and
   add an evaluation harness before you ship prompt changes.
 

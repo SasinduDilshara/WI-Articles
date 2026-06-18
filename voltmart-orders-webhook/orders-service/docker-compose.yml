@@ -1,0 +1,23 @@
+# A throwaway PostgreSQL instance that stands in for VoltMart's real order system.
+# `db/init.sql` is mounted into the image's init directory, so the table and seed
+# rows are created automatically the first time the container starts.
+#
+#   docker compose up -d     # start the database
+#   docker compose down -v    # stop it and wipe the data
+services:
+  orders-db:
+    image: postgres:16
+    container_name: voltmart-orders-db
+    environment:
+      POSTGRES_USER: voltmart
+      POSTGRES_PASSWORD: voltmart
+      POSTGRES_DB: voltmart_orders
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voltmart -d voltmart_orders"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
