@@ -43,13 +43,13 @@ We'll build this in two halves, then join them:
 
 The agent keeps the policy RAG tool from part 1. Alongside it sits the **MCP toolkit** — the agent's connection to the orders service. When a customer asks about a live order, the agent calls a tool on the toolkit; the toolkit forwards the call over MCP to the **orders service**, which runs the real query against **PostgreSQL** and hands the answer back. The two integrations run as separate processes and could live on separate machines — they only share the MCP contract.
 
-> **Companion code.** Everything in this article is in the [`voltmart-orders-mcp`](voltmart-orders-mcp) folder: `orders-service/` is the new MCP service (with its Docker setup), and `voltmart-support/` is the part-1 agent project carried forward with the MCP toolkit added.
+> **Companion code.** You'll build everything below in the low-code editor. If you'd rather read or run the finished result, the complete projects are in the [`voltmart-orders-mcp`](voltmart-orders-mcp) folder — the orders MCP service (with its Docker setup) and the part-1 agent carried forward with the orders service connected. WSO2 Integrator keeps the visual flows and the underlying source in sync, so the projects there are exactly what the clicks below produce.
 
 ---
 
 ## Prerequisites
 
-You'll need everything from [part 1](build-first-ai-integration.md#prerequists-getting-your-tools-ready) — WSO2 Integrator installed, a WSO2 account, and the part-1 agent project — plus one new thing:
+You'll need everything from [part 1](build-first-ai-integration.md#prerequisites-getting-your-tools-ready) — WSO2 Integrator installed, a WSO2 account, and the part-1 agent project — plus one new thing:
 
 - **Docker Desktop** (or any Docker engine with Compose). We use it to run PostgreSQL with zero manual setup. Install it from `https://www.docker.com/products/docker-desktop/` and make sure `docker compose version` prints a version.
 
@@ -57,7 +57,7 @@ You'll need everything from [part 1](build-first-ai-integration.md#prerequists-g
 
 ## Part A — Build the VoltMart Orders MCP service
 
-We'll build the orders service one layer at a time: first the live database, then the data-access layer that talks to it, then the MCP service that exposes the three tools. Each layer is checked before we move on.
+We'll build the orders service one layer at a time: first the live database, then the connection that reaches it, then the MCP service that exposes the three tools. Each layer is checked before we move on.
 
 ### Step A.1 — Create the orders service project
 
@@ -100,7 +100,7 @@ services:
       retries: 5
 ```
 
-Then create `db/init.sql` — the schema plus three seed orders (the same ones the part-1 article used as mock data, now living in a real table):
+Then create `db/init.sql` — the schema plus three seed orders, so the agent has real data to look up the moment it connects:
 
 ```sql
 -- Schema + seed data for VoltMart's order database.
@@ -139,213 +139,123 @@ You should see the three orders listed. The database is live and waiting.
 
 > 💡 When you're done with the whole tutorial, `docker compose down -v` stops the container and wipes the data, so you always start from a clean slate next time.
 
-### Step A.3 — Configure the database connection
+### Step A.3 — Add a connection to the database
 
-The service needs to know where the database is. Add the PostgreSQL connector to your project (in the design view, **+ Add Artifact** → **Connection** → search **PostgreSQL**), then put the connection settings in `Config.toml` so no credentials are hard-coded:
+Now switch back to WSO2 Integrator. Before the service can read or write orders, it needs a **connection** to the database — the low-code equivalent of "here's where the orders live and how to sign in."
 
-```toml
-# Connection settings for the Dockerized PostgreSQL order database.
-# These match the credentials in docker-compose.yml. In production, keep real
-# secrets out of source control and inject them as environment variables instead.
-dbHost = "localhost"
-dbPort = 5432
-dbUser = "voltmart"
-dbPassword = "voltmart"
-dbName = "voltmart_orders"
-```
+1. In the design view, select **+ Add Artifact**.
+2. Under **Connections** (the connector store), search for **PostgreSQL** and select it.
+3. In the **Add New Connection** form, fill in the same values you set in `docker-compose.yml`:
+   - **Host:** `localhost`
+   - **Port:** `5432`
+   - **Username:** `voltmart`
+   - **Password:** `voltmart`
+   - **Database:** `voltmart_orders`
+4. Give the connection a name like `ordersDb` and select **Create**.
 
-### Step A.4 — Define the order type
+[SCREENSHOT: The PostgreSQL "Add New Connection" form with the host, port, and database filled in.]
 
-Just like the agent project, we describe the shape of an order once as a record type. Create `types.bal`:
+> 💡 WSO2 Integrator stores the connection in the project and keeps the secret values out of your source — you point at it by name from any flow. That one connection is what every order tool below will reuse to reach the live data.
 
-```ballerina
-// A single VoltMart order, as stored in the PostgreSQL `orders` table.
-// The SELECT queries in database.bal alias the snake_case columns
-// (order_number, account_email) onto these camelCase fields.
-public type Order record {|
-    string orderNumber;
-    // The email on the account — used for identity verification before sharing details.
-    string accountEmail;
-    string item;
-    // processing | shipped | delivered
-    string status;
-    string eta;
-|};
-```
+### Step A.4 — Create the MCP service
 
-### Step A.5 — Write the data-access layer
+This is the heart of the article. An **MCP service** is an integration artifact that publishes tools over the Model Context Protocol — any MCP client (our agent, Claude Desktop, an IDE) can then discover and call them. WSO2 Integrator gives you a dedicated artifact for it, so there's nothing low-level to wire up.
 
-Before the MCP tools can do anything useful, they need to read and write the database. We isolate that in `database.bal` — one pooled client plus three small query functions. Keeping data access in its own file means the MCP service in the next step reads almost like plain English.
+1. Select **+ Add Artifact**.
+2. Under **AI Integration**, select **MCP Service**.
+3. Fill in the creation form:
+   - **Service Name:** `VoltMart Orders` — the display name MCP clients see.
+   - **Version:** `1.0.0`.
+   - **Port:** `8290` — the port the service listens on.
+   - **Base Path:** `/mcp` — so the service is reachable at `http://localhost:8290/mcp`.
+4. Select **Create**.
 
-```ballerina
-import ballerina/sql;
-import ballerinax/postgresql;
-// The `as _` import wires in the JDBC driver without exposing any symbols.
-import ballerinax/postgresql.driver as _;
+WSO2 Integrator opens the **MCP Service editor**: a listener, an empty **Tools** section with a **+ Add Tool** button, and **Try It** for testing. The three tools come next — each one is added the same way: fill a short form, then build its flow.
 
-// Read from Config.toml (or environment variables in production).
-configurable string dbHost = "localhost";
-configurable int dbPort = 5432;
-configurable string dbUser = "voltmart";
-configurable string dbPassword = "voltmart";
-configurable string dbName = "voltmart_orders";
+[SCREENSHOT: The empty MCP Service editor showing the Tools section and the + Add Tool button.]
 
-// One pooled client for the whole service. The order tools below all share it.
-// This is the "live backend" the agent could never reach from the knowledge base.
-final postgresql:Client ordersDb = check new (
-    host = dbHost,
-    port = dbPort,
-    username = dbUser,
-    password = dbPassword,
-    database = dbName
-);
+See [Exposing a service as MCP](https://wso2.com/integration-platform/docs/genai/develop/mcp/overview) for the full reference.
 
-// Fetch a single order by its number. Returns sql:NoRowsError when nothing matches —
-// the callers turn that into the friendly ORDER_NOT_FOUND signal.
-isolated function fetchOrder(string orderNumber) returns Order|sql:Error =>
-    ordersDb->queryRow(`SELECT order_number  AS "orderNumber",
-                               account_email AS "accountEmail",
-                               item, status, eta
-                          FROM orders
-                         WHERE order_number = ${orderNumber}`);
+### Step A.5 — Add the `getStatus` tool
 
-// Insert a brand-new order.
-isolated function insertOrder(Order ord) returns sql:Error? {
-    _ = check ordersDb->execute(`INSERT INTO orders
-            (order_number, account_email, item, status, eta)
-        VALUES (${ord.orderNumber}, ${ord.accountEmail}, ${ord.item}, ${ord.status}, ${ord.eta})`);
-}
+Our first tool looks up an order's live status — but only after checking the customer's identity. This is the live order lookup part 1 deliberately left out, now reading straight from the real database.
 
-// Delete an order by its number.
-isolated function deleteOrder(string orderNumber) returns sql:Error? {
-    _ = check ordersDb->execute(`DELETE FROM orders WHERE order_number = ${orderNumber}`);
-}
-```
+**Add the tool.** In the MCP Service editor, click **+ Add Tool** and fill in the form:
 
-A couple of things worth calling out:
+1. **Name:** `getStatus`. This is the tool name MCP clients see, so make it clear.
+2. **Description:** the single most important field — it's what the calling agent reads to decide *when* to use this tool, and the rule it must follow. Paste in:
 
-- The queries use Ballerina's backtick **parameterized queries**, so the `${...}` values are sent as bound SQL parameters, not string-concatenated — that's your built-in protection against SQL injection.
-- `queryRow` returns a typed `Order` directly, mapping the `AS "orderNumber"` aliases onto the record fields. When no row matches it returns `sql:NoRowsError`, which we'll turn into a clean `ORDER_NOT_FOUND` signal — the same explicit-signal pattern the agent relied on in part 1.
+   ```
+   Look up the current status and delivery ETA of a VoltMart order. You MUST pass BOTH the order number AND the account email. Details are returned ONLY when the email matches the order on file — that is the identity check. Returns VERIFICATION_FAILED if the email does not match, or ORDER_NOT_FOUND if no order matches the number. Never share details this tool did not return.
+   ```
+3. **Parameters:** click **+ Add Parameter** twice and add two `string` parameters:
+   - `orderNumber` — *"The order number, e.g. 10432 (a leading # is fine)."*
+   - `accountEmail` — *"The email address on the customer's VoltMart account."*
+4. **Return Type:** `string` — the status line, or one of the `VERIFICATION_FAILED` / `ORDER_NOT_FOUND` signals.
+5. Select **Save**. WSO2 Integrator opens an **empty flow diagram** for the tool — this is where we look the order up and run the identity check.
 
-### Step A.6 — Expose the three tools as an MCP service
+Now build the flow. You have two ways to do it.
 
-This is the heart of the article. An [**MCP service**](https://wso2.com/integration-platform/docs/genai/overview) in WSO2 Integrator turns ordinary functions into MCP tools: you write a `remote function`, and WSO2 Integrator publishes it as a named, typed tool over the MCP protocol — handling all the JSON-RPC and transport plumbing for you. The function **name** becomes the tool name, its **doc comment** becomes the description the calling LLM reads to decide *when* to use it, and its **parameters** become the tool's input schema.
+**⚡ With WSO2 Integrator Copilot (fastest path).** Click **Generate with AI** in the tool flow and describe the logic in plain English — for example: *"Look up `orderNumber` in the `ordersDb` PostgreSQL connection (the `orders` table, keyed by `order_number`). If no row matches, return `\"ORDER_NOT_FOUND\"`. Otherwise, if the row's `account_email` doesn't equal the `accountEmail` parameter, return `\"VERIFICATION_FAILED\"`. Otherwise return a sentence with the item, status, and ETA."* Review the generated flow and click **Keep**.
 
-> This is the same idea as the custom tools in part 1 — name, description, and typed parameters are what an agent reasons over — except now the tools live in a standalone service that *any* MCP client can use.
+**Prefer to place the nodes by hand?** Build it on the flow line, node by node:
 
-Create `service.bal`:
+1. **Look the order up.** Click **+** → under **Connections**, select your `ordersDb` connection and choose its **query** action (the one that runs a `SELECT` and returns a row). Set the query to select the order whose `order_number` matches the `orderNumber` parameter, and bind the result to a variable named `order`.
+2. **Guard the unknown order.** Click **+** → **If**, with a condition that checks whether the lookup found nothing. In the **then** branch, click **+** → **Return** and return `"ORDER_NOT_FOUND: No VoltMart order matches that number."` — an explicit signal the agent can act on, instead of a blank.
+3. **Verify identity.** On the main line, click **+** → **If**, comparing `order.accountEmail` to the `accountEmail` parameter (case-insensitively). In the **then** branch, **Return** `"VERIFICATION_FAILED: That email does not match this order."` This is the rule the system prompt depends on, now enforced in the backend.
+4. **Return the status.** After the check, click **+** → **Return** and return a status line built from the order, e.g. `Order #10432 (AirWave Pro wireless headphones): status is "shipped", arriving Thursday, 18 June 2026.`
 
-```ballerina
-import ballerina/log;
-import ballerina/mcp;
-import ballerina/sql;
+[SCREENSHOT: The getStatus tool flow — query node, two If guards, and the status Return.]
 
-// The MCP server listens on its own port, separate from the agent. Anything that speaks
-// MCP — the WSO2 agent we build later, Claude Desktop, or any other MCP client — can connect.
-listener mcp:Listener ordersMcpListener = check new (8290);
+> **Why both a query node and an If check?** The query reaches the live database; the identity `If` makes sure we never hand back another customer's order. Keeping that rule *inside the tool* means it holds no matter which client calls it — the agent, or anything else.
 
-// One MCP service exposes three tools to any connected client. WSO2 Integrator turns each
-// `remote function` into a named, typed MCP tool automatically: the function name becomes the
-// tool name, the doc comment becomes the description the client's LLM reads to decide when to
-// call it, and the parameters become the tool's input schema. `sessionMode: AUTO` lets the
-// transport decide whether to track sessions.
-@mcp:ServiceConfig {
-    info: {name: "VoltMart Orders", version: "1.0.0"},
-    sessionMode: mcp:AUTO
-}
-service mcp:Service /mcp on ordersMcpListener {
+### Step A.6 — Add the `createOrder` tool
 
-    # Look up the current status and delivery ETA of a VoltMart order. You MUST pass BOTH the
-    # order number AND the account email. Details are returned ONLY when the email matches the
-    # order on file — that is the identity check. Returns VERIFICATION_FAILED if the email does
-    # not match, or ORDER_NOT_FOUND if no order matches the number. Never share details this
-    # tool did not return.
-    #
-    # + orderNumber - The order number, e.g. "10432" (a leading '#' is fine)
-    # + accountEmail - The email address on the customer's VoltMart account
-    # + return - The status and ETA when the email matches, otherwise a VERIFICATION_FAILED / ORDER_NOT_FOUND signal
-    remote isolated function getStatus(string orderNumber, string accountEmail) returns string|error {
-        string number = normalize(orderNumber);
-        Order|sql:Error result = fetchOrder(number);
-        if result is sql:NoRowsError {
-            return "ORDER_NOT_FOUND: No VoltMart order matches that number. Do not guess a status.";
-        }
-        if result is sql:Error {
-            return error("Could not reach the VoltMart order database.", result);
-        }
-        if result.accountEmail.toLowerAscii() != accountEmail.trim().toLowerAscii() {
-            return "VERIFICATION_FAILED: That email does not match this order. Do not share any order details.";
-        }
-        return string `Order #${number} (${result.item}): status is "${result.status}", ${result.eta}.`;
-    }
+Back in the MCP Service editor, click **+ Add Tool** again:
 
-    # Create a new VoltMart order in the order database. Call this only when the customer has
-    # given you the account email and the item to order. The new order always starts in the
-    # "processing" status. Returns ORDER_EXISTS if an order with that number already exists.
-    #
-    # + orderNumber - The order number to create, e.g. "10644"
-    # + accountEmail - The email on the customer's VoltMart account
-    # + item - The product being ordered, e.g. "AirWave Pro wireless headphones"
-    # + return - A confirmation line, or an ORDER_EXISTS signal
-    remote isolated function createOrder(string orderNumber, string accountEmail, string item)
-            returns string|error {
-        string number = normalize(orderNumber);
-        Order|sql:Error existing = fetchOrder(number);
-        if existing is Order {
-            return "ORDER_EXISTS: An order with that number already exists. Pick a different number.";
-        }
-        Order newOrder = {
-            orderNumber: number,
-            accountEmail: accountEmail.trim(),
-            item: item,
-            status: "processing",
-            eta: "ships within 1 business day"
-        };
-        check insertOrder(newOrder);
-        log:printInfo("Created order", orderNumber = number, item = item);
-        return string `Order #${number} created for ${item}. Status: processing, ${newOrder.eta}.`;
-    }
+1. **Name:** `createOrder`.
+2. **Description:**
 
-    # Remove a VoltMart order from the order database. Call this to cancel an order the customer
-    # asks to remove. You MUST pass BOTH the order number AND the account email; the order is only
-    # removed when the email matches the order on file. Returns VERIFICATION_FAILED if it does not,
-    # or ORDER_NOT_FOUND if no order matches the number.
-    #
-    # + orderNumber - The order number to remove
-    # + accountEmail - The email on the customer's VoltMart account, used to verify identity
-    # + return - A confirmation line, or a VERIFICATION_FAILED / ORDER_NOT_FOUND signal
-    remote isolated function removeOrder(string orderNumber, string accountEmail) returns string|error {
-        string number = normalize(orderNumber);
-        Order|sql:Error existing = fetchOrder(number);
-        if existing is sql:NoRowsError {
-            return "ORDER_NOT_FOUND: No VoltMart order matches that number.";
-        }
-        if existing is sql:Error {
-            return error("Could not reach the VoltMart order database.", existing);
-        }
-        if existing.accountEmail.toLowerAscii() != accountEmail.trim().toLowerAscii() {
-            return "VERIFICATION_FAILED: That email does not match this order. The order was not removed.";
-        }
-        check deleteOrder(number);
-        log:printInfo("Removed order", orderNumber = number);
-        return string `Order #${number} has been removed.`;
-    }
-}
+   ```
+   Create a new VoltMart order in the order database. Call this only when the customer has given you the account email and the item to order. The new order always starts in the "processing" status. Returns ORDER_EXISTS if an order with that number already exists.
+   ```
+3. **Parameters:** three `string` parameters — `orderNumber`, `accountEmail`, and `item` (*"The product being ordered, e.g. AirWave Pro wireless headphones."*).
+4. **Return Type:** `string`.
+5. **Save**, then build the flow.
 
-// Customers say "#10432" and "10432" interchangeably; the database stores the bare number.
-isolated function normalize(string orderNumber) returns string {
-    string trimmed = orderNumber.trim();
-    return trimmed.startsWith("#") ? trimmed.substring(1) : trimmed;
-}
-```
+**⚡ With Copilot:** click **Generate with AI** and describe it — *"Check the `ordersDb` connection for an order with this `orderNumber`. If one exists, return `\"ORDER_EXISTS\"`. Otherwise insert a new row with the given order number, account email, and item, status `processing`, ETA `ships within 1 business day`, and return a confirmation line."* Review and **Keep**.
 
-Notice how much of part 1 carries straight over. The identity check in `getStatus` and `removeOrder` is the same rule the order-status tool followed in part 1 — *never reveal order details until the email matches* — only now it guards a real database, and the rule lives in the backend where it belongs rather than in the agent. The `VERIFICATION_FAILED` / `ORDER_NOT_FOUND` strings are explicit signals the agent can act on, exactly like `NO_POLICY_FOUND` was for the RAG tool.
+**By hand:** click **+** → **Connections** → `ordersDb` → the **query** action to check for an existing order → **If** it exists, **Return** `"ORDER_EXISTS: …"`; otherwise **+** → **Connections** → `ordersDb` → the **execute** action (the one that runs an `INSERT`) to add the new row, then **Return** a confirmation such as `Order #10644 created for VoltBuds Mini. Status: processing, ships within 1 business day.`
 
-### Step A.7 — Run the MCP service and verify the tools
+> **Note.** To keep the tutorial simple, the order number is passed in as a parameter. A production service would generate it server-side (a sequence or UUID) and return it, rather than trusting the caller to supply a unique one.
+
+### Step A.7 — Add the `removeOrder` tool
+
+One more time — **+ Add Tool**:
+
+1. **Name:** `removeOrder`.
+2. **Description:**
+
+   ```
+   Remove a VoltMart order from the order database. You MUST pass BOTH the order number AND the account email; the order is only removed when the email matches the order on file. Returns VERIFICATION_FAILED if it does not, or ORDER_NOT_FOUND if no order matches the number.
+   ```
+3. **Parameters:** two `string` parameters — `orderNumber` and `accountEmail`.
+4. **Return Type:** `string`.
+5. **Save**, then build the flow.
+
+**⚡ With Copilot:** *"Look the order up in `ordersDb`. Return `\"ORDER_NOT_FOUND\"` if it isn't there; return `\"VERIFICATION_FAILED\"` if its `account_email` doesn't match the `accountEmail` parameter; otherwise delete the row and return a confirmation line."* Review and **Keep**.
+
+**By hand:** it's the same shape as `getStatus` — **query** to fetch the order, an **If** for `ORDER_NOT_FOUND`, an **If** comparing the email for `VERIFICATION_FAILED` — except the final step is the connection's **execute** action running a `DELETE`, followed by a **Return** confirming the removal.
+
+> Notice the pattern across all three tools: fetch, guard with explicit signals, then act. The `VERIFICATION_FAILED` / `ORDER_NOT_FOUND` / `ORDER_EXISTS` strings are the same explicit-signal style as `NO_POLICY_FOUND` from part 1 — the agent reads them and responds sensibly instead of guessing.
+
+### Step A.8 — Run the MCP service and verify the tools
 
 With the database already running from Step A.2, start the orders service with the **Run** button. It comes up on port `8290`, publishing the three tools at `http://localhost:8290/mcp`.
 
-You don't need the agent to test this — any MCP client will do. The quickest check is to confirm the server lists exactly the three tools we wrote:
+You don't need the agent to test this. The quickest check is the editor's **Try It** panel, which lists the three tools and lets you invoke one directly — try `getStatus` with `10432` / `jordan@example.com` and watch it return the live status from PostgreSQL.
+
+Prefer the command line? Ask the server what tools it publishes:
 
 ```bash
 curl -s -X POST http://localhost:8290/mcp \
@@ -354,60 +264,37 @@ curl -s -X POST http://localhost:8290/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
-The response lists `getStatus`, `createOrder`, and `removeOrder`, each with the description and input schema derived from your function. That's the MCP contract the agent will consume next.
+The response lists `getStatus`, `createOrder`, and `removeOrder`, each with the description and parameters from the form you filled in. That's the MCP contract the agent will consume next.
 
-[SCREENSHOT: The tools/list response showing the three tools with their descriptions.]
+[SCREENSHOT: The MCP Service "Try It" panel invoking getStatus and showing the live result.]
 
 ---
 
 ## Part B — Connect the MCP service to the agent
 
-Half the work is done: the orders service is live and publishing tools. Now we give the part-1 agent access to them. The beauty of MCP is that we **don't** add three tools one by one — we add the *service* as a single **toolkit**, and the agent gains every tool it publishes at once.
+Half the work is done: the orders service is live and publishing tools. Now we give the part-1 agent access to them. The beauty of MCP is that we **don't** add three tools one by one — we point the agent at the *service*, and it discovers every tool at once.
 
-We pick up the `voltmart-support` agent project from part 1.
+Reopen the `voltmart-support` agent from part 1.
 
-### Step B.1 — Add the MCP toolkit
+### Step B.1 — Add the orders service as an MCP server
 
-A [**toolkit**](https://wso2.com/integration-platform/docs/genai/develop/agents/tools) is a bundle of tools an agent can use. WSO2 Integrator ships a ready-made one for MCP — `ai:McpToolKit` — that connects to an MCP server, discovers its tools at startup, and presents them to the agent as if they were native. It's a single line of construction. Create `mcp_toolkit.bal` in the agent project:
+1. Open the **AI Chat Agent** and click the **AI Agent** node.
+2. Click **+ Add Tool**, then choose **Use MCP Server**.
+3. In the **Add MCP Server** panel:
+   - **Server URL:** `http://localhost:8290/mcp` — the orders service from Part A.
+   - **Tools to Include:** leave it at **All** (we want all three).
+   - **Info → name / version:** an identifier for this client, e.g. `VoltMart Orders Client` / `1.0.0`.
+4. The panel queries the server and lists the discovered tools — `getStatus`, `createOrder`, `removeOrder`. Confirm they appear, then select **Save**.
 
-```ballerina
-import ballerina/ai;
+[SCREENSHOT: The "Add MCP Server" panel showing the three discovered tools after entering the server URL.]
 
-// ----- MCP toolkit: the bridge from the agent to the orders MCP service (Part 2) -----
-//
-// `ai:McpToolKit` connects to an MCP server, discovers every tool it publishes at startup,
-// and presents them to the agent as native tools — no per-tool wiring. Point it at the orders
-// MCP service and the agent gains getStatus, createOrder, and removeOrder all at once. Add a
-// tool to the service later and it is picked up automatically, with no change here.
-configurable string ordersMcpUrl = "http://localhost:8290/mcp";
+That's the entire wiring. The agent now has four tools: `searchVoltMartPolicies` from part 1, plus the three it just discovered. There were **no tool names to type** — discovery is automatic, which is why adding a tool to the service later (as we'll do in part 3) needs no change here.
 
-final ai:McpToolKit ordersToolKit = check new (ordersMcpUrl,
-    info = {name: "VoltMart Orders Client", version: "1.0.0"}
-);
-```
+See [Consuming MCP from an agent](https://wso2.com/integration-platform/docs/genai/develop/mcp/overview) for more.
 
-That's the whole toolkit. When `ai:McpToolKit` is constructed it connects to the server, calls the MCP `tools/list` endpoint, and turns each tool the server reports into something the agent can call — **no hardcoded tool names**. Discovery is automatic, which is exactly why adding a tool to the service later requires zero changes on the agent side (you'll see this pay off in part 3).
+### Step B.2 — Update the agent's instructions
 
-> 💡 **Fastest path with Copilot.** You don't even have to type this line. On the **AI Agent** node, click **+** → **Add MCP Server (Tool)**, point it at `http://localhost:8290/mcp`, and WSO2 Integrator generates the toolkit wiring for you. The code above is what it produces — shown here so you understand each piece.
-
-### Step B.2 — Give the agent the toolkit and update its instructions
-
-Open `agents.bal` and add the toolkit to the agent's `tools` list, right alongside the policy tool from part 1:
-
-```ballerina
-final ai:Agent voltMartAssistantAgent = check new (
-    systemPrompt = { ... },
-    model = wso2ModelProvider,
-    memory = voltMartMemory,
-    // The policy RAG tool from Part 1, plus EVERY tool the orders MCP service publishes
-    // (getStatus, createOrder, removeOrder) — added as a single toolkit.
-    tools = [searchVoltMartPolicies, ordersToolKit]
-);
-```
-
-That one addition — `ordersToolKit` — is the entire wiring. The agent now has four tools: `searchVoltMartPolicies` plus the three from the orders service.
-
-Now teach the agent *when* to use them. In part 1 the system prompt told the agent it couldn't look orders up and to fall back to support. We replace that with real tool guidance. Update the **USING YOUR TOOLS** section of the system prompt:
+The agent can now reach the order tools, but it still needs to know *when* to use them. Click the **AI Agent** node, open the **Instructions** (system prompt) editor, and update the **USING YOUR TOOLS** section so it reads:
 
 ```
 USING YOUR TOOLS
@@ -417,7 +304,7 @@ USING YOUR TOOLS
 - To CANCEL/remove an order, call removeOrder. As with status, you need BOTH the order number AND the account email, and the tool only removes it when the email matches.
 ```
 
-Also drop the two part-1 lines that no longer apply — the one telling the agent it *can't* look up orders, and the one saying it can't change or cancel an order — since those capabilities now exist. (The full, updated `agents.bal` is in the companion project.)
+Then remove the two part-1 lines that no longer apply — the one telling the agent it *can't* look up orders, and the one saying it can't change or cancel an order — since those capabilities now exist. Select **Save**.
 
 > **Why the identity rule lives in two places.** You'll notice the prompt asks the agent for the email *and* the MCP tool enforces the match. That's deliberate: the prompt makes for a good conversation (the agent asks first instead of failing), while the service enforces the rule no matter what any client does. Never trust the prompt alone for a security boundary — the backend is the source of truth.
 
@@ -530,7 +417,7 @@ curl -X POST http://localhost:9090/voltMartAssistant/chat \
 
 ## What just happened
 
-Step back and look at what you built. The orders service knows nothing about AI — it's a plain integration over a database that happens to publish MCP tools. The agent knows nothing about PostgreSQL — it just sees four tools and reasons about when to call them. The only thing connecting them is the MCP contract and one line of wiring (`ordersToolKit`). That's the decoupling MCP buys you: either side can change independently, and the same orders service could back a second agent, a mobile app, or Claude Desktop without a single change.
+Step back and look at what you built. The orders service knows nothing about AI — it's a plain integration over a database that happens to publish MCP tools. The agent knows nothing about PostgreSQL — it just sees four tools and reasons about when to call them. The only thing connecting them is the MCP contract and the single **Use MCP Server** step you clicked in Part B. That's the decoupling MCP buys you: either side can change independently, and the same orders service could back a second agent, a mobile app, or Claude Desktop without a single change.
 
 ## What's next in the series
 
@@ -538,8 +425,8 @@ The agent can now read and write live order data. But it's still **reactive** �
 
 A few directions to explore on your own first:
 
-- **Add a fourth tool.** Add an `updateStatus` `remote function` to the MCP service. Restart only the service — the agent picks it up with no changes, thanks to automatic tool discovery. (We'll do exactly this in part 3.)
-- **Swap the database.** Point `Config.toml` at a managed PostgreSQL instead of the Docker one. Nothing else changes.
+- **Add a fourth tool.** Click **+ Add Tool** on the MCP service and add one more. Restart only the service — the agent picks it up with no changes, thanks to automatic tool discovery. (We'll do exactly this in part 3.)
+- **Swap the database.** Point the PostgreSQL connection at a managed database instead of the Docker one. Nothing else changes.
 - **Secure the MCP endpoint.** For anything beyond local development, put auth in front of the MCP service — see the [tools documentation](https://wso2.com/integration-platform/docs/genai/develop/agents/tools).
 
 ---

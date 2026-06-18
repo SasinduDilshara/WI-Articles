@@ -31,7 +31,7 @@ And because the publisher is just another MCP tool, the agent gains the ability 
 
 Building on the part-2 project, we'll add:
 
-1. **A `updateStatus` MCP tool** on the orders service. It moves an order through `processing → shipped → delivered`, writes the change to PostgreSQL, and **fires a webhook**.
+1. **An `updateStatus` MCP tool** on the orders service. It moves an order through `processing → shipped → delivered`, writes the change to PostgreSQL, and **fires a webhook**.
 2. **A notifications receiver** — a standalone webhook subscriber that receives the event and composes the message the customer would actually get.
 3. **The agent, unchanged in wiring** — it discovers `updateStatus` automatically over MCP; we only update its instructions so it knows when to use it.
 
@@ -41,7 +41,7 @@ Building on the part-2 project, we'll add:
 
 The flow reads left to right and then *pushes* right to left: the agent (or any MCP client) calls `updateStatus`; the orders service updates **PostgreSQL** and immediately POSTs a status-change event to the **notifications receiver**; the receiver delivers the customer's notification. The webhook is fire-and-forget — the status change succeeds regardless of whether notification delivery does.
 
-> **Companion code.** Everything is in the [`voltmart-orders-webhook`](voltmart-orders-webhook) folder: it's the part-2 project carried forward, with the webhook publisher added to `orders-service/` and a new `notifications-receiver/` project for the subscriber.
+> **Companion code.** You'll build everything below in the low-code editor. The finished projects — the part-2 orders service with the webhook added, plus the new notifications receiver — are in the [`voltmart-orders-webhook`](voltmart-orders-webhook) folder if you'd rather read or run the result.
 
 ---
 
@@ -51,231 +51,88 @@ Everything from [part 2](connect-live-data-with-mcp.md#prerequisites) — WSO2 I
 
 ---
 
-## Step 1 — Add a status-change query to the data layer
+## Step 1 — Build the notifications receiver (the subscriber)
 
-The webhook is only worth firing when something real changed, so we start at the database. Open `database.bal` in the `orders-service` project and add one more query function alongside the part-2 ones:
+We'll build the subscriber first, so there's something live for the webhook to call. This is a stand-in for whatever channel actually reaches the customer — an email service, an SMS gateway, a push provider. It's a plain HTTP service that listens for status-change events.
 
-```ballerina
-// Move an order to a new status (and refresh its ETA text). Used by the status-change
-// tool that drives live notifications in Part 3.
-isolated function updateOrderStatus(string orderNumber, string status, string eta) returns sql:Error? {
-    _ = check ordersDb->execute(`UPDATE orders
-                                    SET status = ${status}, eta = ${eta}
-                                  WHERE order_number = ${orderNumber}`);
-}
-```
+1. In WSO2 Integrator, create a new integration. Set **Integration Name** to `VoltMartNotifications` and **Project Name** to `notifications-receiver`, then **Create Integration**.
+2. Add the endpoint that receives webhooks. Select **+ Add Artifact** → **Service**, and configure it:
+   - **Listener port:** `9091`.
+   - **Base path:** `/notifications`.
+   - Add a resource with **HTTP method** `POST` and **path** `order-status` — so the full webhook URL is `http://localhost:9091/notifications/order-status`.
+   - **Payload:** accept the incoming JSON event (order number, account email, item, previous status, new status, ETA).
+3. Select **Create**. WSO2 Integrator opens the resource's flow diagram.
 
-Same parameterized-query style as before — nothing new to learn, we're just adding an `UPDATE`.
+[SCREENSHOT: The Service creation form with port 9091, base path /notifications, and the POST order-status resource.]
 
-## Step 2 — Build the webhook publisher
+Now build the flow that turns an event into a customer message.
 
-Now the new piece. When a status changes, the orders service needs to call **out** to a subscriber. Create `webhook.bal` in the `orders-service` project:
+**⚡ With WSO2 Integrator Copilot (fastest path).** Click **Generate with AI** and describe it — *"From the incoming status-change payload, compose a friendly customer message based on the new status (shipped → 'has shipped', delivered → 'was delivered', otherwise a generic update), log it as the notification sent to the customer's email, and respond with 202 Accepted."* Review and **Keep**.
 
-```ballerina
-import ballerina/http;
-import ballerina/log;
+**Prefer to build it by hand?** On the flow line:
+1. Click **+** → **Log** (Info) and write a message that includes the customer's email and a line composed from the event — e.g. *"Good news! Your VoltMart order #10588 (SoundDock 2 Bluetooth speaker) has shipped."* In a real system this node would be an **email/SMS connector** action instead of a log.
+2. Click **+** → **Return** (or set the resource response) to reply **202 Accepted** — the conventional webhook acknowledgement that says *"I've received the event and taken responsibility for it."*
 
-// ----- Webhook publisher: live order-status notifications (Part 3) -----
-//
-// When an order changes status, the orders service POSTs a notification to a subscriber
-// (the notifications receiver, or any real channel — email/SMS gateway, customer app).
-// This is the "push" half of the system: the customer is told the moment something changes,
-// instead of having to ask. The target URL is configuration, so subscribers can change
-// without touching code.
-configurable string webhookUrl = "http://localhost:9091/notifications/order-status";
+Run this project (**Run** button). It now waits on port `9091` for webhooks — nothing calls it yet, which we fix next.
 
-// A separate HTTP client just for delivering webhooks.
-final http:Client webhookClient = check new (webhookUrl);
+> 💡 **Why 202, and why fire-and-forget?** The receiver returns quickly and the publisher never waits on a downstream email send. Coupling a database change to the availability of a notification channel would be fragile — so we keep them independent.
 
-// The notification payload. The receiver decodes exactly this shape.
-public type StatusChangedEvent record {|
-    string event;
-    string orderNumber;
-    string accountEmail;
-    string item;
-    string previousStatus;
-    string newStatus;
-    string eta;
-|};
+## Step 2 — Add the webhook connection to the orders service
 
-// Fire the notification. We never let a webhook failure break the status update itself —
-// the order has already changed in the database; delivery is best-effort, so we log and
-// move on rather than propagating the error back to the caller.
-isolated function notifyStatusChange(StatusChangedEvent event) {
-    http:Response|error response = webhookClient->post("", event);
-    if response is error {
-        log:printWarn("Order-status webhook delivery failed",
-                orderNumber = event.orderNumber, 'error = response);
-        return;
-    }
-    log:printInfo("Order-status webhook delivered",
-            orderNumber = event.orderNumber, newStatus = event.newStatus);
-}
-```
+Switch back to the **orders-service** project from part 2. For the service to call *out* to the receiver, it needs an **HTTP connection** pointing at it.
 
-Two design choices worth understanding, because they're what separates a toy webhook from a real one:
+1. In the design view, select **+ Add Artifact** → **Connection**.
+2. In the connector store, search for **HTTP** and select it.
+3. In the **Add New Connection** form, set the **Base URL** to `http://localhost:9091/notifications` and name the connection `notifier`.
+4. Select **Create**.
 
-- **The target is configuration, not code.** `webhookUrl` is `configurable`, so a subscriber can be repointed (or swapped for a real email gateway) without recompiling. Real systems often keep a *list* of subscribers in a database; this is the single-subscriber version of the same idea.
-- **Delivery is best-effort and never blocks the business action.** The order status has *already* changed in the database. If the notification fails to send, we log a warning and carry on — we do not fail the status update or propagate the error. Coupling a database write to the availability of a notification channel would be fragile; decoupling them is the whole point of an event.
+[SCREENSHOT: The HTTP "Add New Connection" form pointing at the notifications receiver.]
 
-## Step 3 — Add the `updateStatus` MCP tool
+That's the outbound channel. The status-change tool we build next will use it to deliver the event.
 
-Now wire the database update and the webhook together into a new MCP tool. In `service.bal`, add one more `remote function` to the orders service — right alongside `getStatus`, `createOrder`, and `removeOrder`:
+## Step 3 — Add the `updateStatus` tool that fires the webhook
 
-```ballerina
-    # Update the status of a VoltMart order and send the customer a live notification. Call this
-    # when an order moves forward in fulfillment, e.g. from "processing" to "shipped" or from
-    # "shipped" to "delivered". The new status MUST be one of: processing, shipped, delivered.
-    # On success the customer is notified automatically via webhook. Returns ORDER_NOT_FOUND if
-    # no order matches the number, or INVALID_STATUS if the status is not one of the allowed values.
-    #
-    # + orderNumber - The order number whose status is changing
-    # + newStatus - The new status: "processing", "shipped", or "delivered"
-    # + return - A confirmation line, or an ORDER_NOT_FOUND / INVALID_STATUS signal
-    remote isolated function updateStatus(string orderNumber, string newStatus) returns string|error {
-        string number = normalize(orderNumber);
-        string status = newStatus.trim().toLowerAscii();
-        if status != "processing" && status != "shipped" && status != "delivered" {
-            return "INVALID_STATUS: Status must be one of processing, shipped, or delivered.";
-        }
-        Order|sql:Error existing = fetchOrder(number);
-        if existing is sql:NoRowsError {
-            return "ORDER_NOT_FOUND: No VoltMart order matches that number.";
-        }
-        if existing is sql:Error {
-            return error("Could not reach the VoltMart order database.", existing);
-        }
+Now the centerpiece. Open the **VoltMart Orders MCP service** (the same one from part 2) and click **+ Add Tool** — exactly as you added the other three. This tool moves an order forward and pushes a notification in the same flow.
 
-        // A friendly ETA line that matches the new status.
-        string eta = etaFor(status);
-        check updateOrderStatus(number, status, eta);
+**Add the tool.** Fill in the form:
 
-        // Push the live notification. Delivery is best-effort and never blocks the update.
-        notifyStatusChange({
-            event: "order.status.changed",
-            orderNumber: number,
-            accountEmail: existing.accountEmail,
-            item: existing.item,
-            previousStatus: existing.status,
-            newStatus: status,
-            eta: eta
-        });
+1. **Name:** `updateStatus`.
+2. **Description:** what the agent reads to decide when to use it:
 
-        log:printInfo("Updated order status", orderNumber = number,
-                previousStatus = existing.status, newStatus = status);
-        return string `Order #${number} (${existing.item}) is now "${status}". The customer has been notified — ${eta}.`;
-    }
-```
+   ```
+   Update the status of a VoltMart order and send the customer a live notification. Call this when an order moves forward in fulfillment, e.g. from "processing" to "shipped" or from "shipped" to "delivered". The new status MUST be one of: processing, shipped, delivered. On success the customer is notified automatically. Returns ORDER_NOT_FOUND if no order matches the number, or INVALID_STATUS if the status is not one of the allowed values.
+   ```
+3. **Parameters:** two `string` parameters — `orderNumber` and `newStatus` (*"The new status: processing, shipped, or delivered."*).
+4. **Return Type:** `string`.
+5. Select **Save** to open the tool's flow diagram.
 
-And the small helper it uses, placed next to `normalize`:
+Now build the flow — it does three things in order: validate, update the database, fire the webhook.
 
-```ballerina
-// A human-readable ETA line for each status, so the notification reads naturally.
-isolated function etaFor(string status) returns string {
-    match status {
-        "shipped" => {
-            return "on its way, arriving in 2-3 business days";
-        }
-        "delivered" => {
-            return "delivered today";
-        }
-        _ => {
-            return "ships within 1 business day";
-        }
-    }
-}
-```
+**⚡ With WSO2 Integrator Copilot (fastest path).** Click **Generate with AI** and describe it — *"If `newStatus` isn't one of processing/shipped/delivered, return `\"INVALID_STATUS\"`. Look the order up in the `ordersDb` connection; if it's missing, return `\"ORDER_NOT_FOUND\"`. Otherwise update the order's status (and a matching ETA line) in `ordersDb`, then POST a status-change event — order number, account email, item, previous status, new status, ETA — to the `notifier` HTTP connection's `/order-status` path. Don't fail the tool if the POST fails; just carry on. Return a confirmation line."* Review and **Keep**.
 
-The shape mirrors the part-2 tools exactly: validate the input, look the order up, return a clean signal if something's off, otherwise do the work. The one new beat is the line after the database write — `notifyStatusChange(...)`. That single call is the bridge from a database update to a live customer notification.
+**Prefer to place the nodes by hand?** On the flow line:
 
-## Step 4 — Build the notifications receiver (the subscriber)
+1. **Validate the status.** Click **+** → **If**, checking that `newStatus` is one of `processing`, `shipped`, `delivered`. In the **else** branch (when it isn't), **Return** `"INVALID_STATUS: Status must be one of processing, shipped, or delivered."`
+2. **Fetch the order.** Click **+** → **Connections** → `ordersDb` → the **query** action, selecting the order by `orderNumber`. Bind it to `order`. Add an **If** for the not-found case that **Returns** `"ORDER_NOT_FOUND: No VoltMart order matches that number."`
+3. **Update the database.** Click **+** → **Connections** → `ordersDb` → the **execute** action running an `UPDATE` that sets the new status (and a friendly ETA line — e.g. *"on its way, arriving in 2-3 business days"* for shipped).
+4. **Fire the webhook.** Click **+** → **Connections** → `notifier` → the **POST** action. Set the path to `/order-status` and the body to a JSON event built from the order: order number, account email, item, the **previous** status, the new status, and the ETA. This is the single node that turns a database change into a live customer notification.
+5. **Return a confirmation.** Click **+** → **Return** with a line like `Order #10588 (SoundDock 2 Bluetooth speaker) is now "shipped". The customer has been notified.`
 
-The publisher is calling out to `http://localhost:9091/notifications/order-status` — now we build the thing that listens there. This stands in for whatever actually reaches the customer (an email service, SMS gateway, push provider). It's a separate project so the boundary is real, just like the orders service is separate from the agent.
+[SCREENSHOT: The updateStatus tool flow — validate, query, update, the notifier POST node, and the Return.]
 
-Create a new integration named `notifications-receiver`, then add `service.bal`:
+> **Keep delivery best-effort.** The order status changes in the database *before* the webhook fires, and a failed POST should not fail the tool — the order really did move. If you're building by hand, wrap the POST so a delivery error is logged and ignored rather than propagated. (The companion project does exactly this.)
 
-```ballerina
-import ballerina/http;
-import ballerina/log;
+## Step 4 — Let the agent drive it
 
-// ----- Notifications receiver: the webhook subscriber (Part 3) -----
-//
-// A stand-in for whatever channel actually reaches the customer — an email service, an SMS
-// gateway, a push-notification provider, or the customer's app. The orders service POSTs an
-// order-status event here the moment an order changes; in a real system this handler would
-// format and send the message. Here we log it and craft the customer-facing copy so you can
-// see the live notification arrive end to end.
+Here's the payoff from choosing MCP in part 2. The agent connects to the orders service through the **Use MCP Server** tool you added in part 2, and MCP discovers tools automatically. You just added `updateStatus` to that service — so the agent will pick it up with **no changes to its tool configuration at all**. (If the agent was running, restart it so it re-discovers the service's tools.)
 
-// Must match orders-service/webhook.bal `StatusChangedEvent`.
-type StatusChangedEvent record {|
-    string event;
-    string orderNumber;
-    string accountEmail;
-    string item;
-    string previousStatus;
-    string newStatus;
-    string eta;
-|};
-
-service /notifications on new http:Listener(9091) {
-
-    // The orders service delivers status-change webhooks here.
-    resource function post 'order\-status(@http:Payload StatusChangedEvent event)
-            returns http:Accepted {
-        string message = composeMessage(event);
-        // In production: send `message` to the customer via email/SMS/push.
-        log:printInfo("Customer notification sent",
-                to = event.accountEmail,
-                orderNumber = event.orderNumber,
-                body = message);
-        // 202 Accepted: we've taken responsibility for delivering the notification.
-        return http:ACCEPTED;
-    }
-}
-
-// Turn a raw status-change event into the message a customer would actually receive.
-isolated function composeMessage(StatusChangedEvent event) returns string {
-    match event.newStatus {
-        "shipped" => {
-            return string `Good news! Your VoltMart order #${event.orderNumber} (${event.item}) `
-                + string `has shipped — ${event.eta}.`;
-        }
-        "delivered" => {
-            return string `Your VoltMart order #${event.orderNumber} (${event.item}) was `
-                + string `${event.eta}. Enjoy!`;
-        }
-        _ => {
-            return string `Update on your VoltMart order #${event.orderNumber} (${event.item}): `
-                + string `it's now ${event.newStatus}.`;
-        }
-    }
-}
-```
-
-A few things to note:
-
-- The `StatusChangedEvent` record matches the publisher's payload field-for-field — that shared shape *is* the webhook contract between the two services.
-- The resource path `'order\-status` is just the Ballerina way of writing a path segment with a hyphen in it (`/notifications/order-status`).
-- It returns **202 Accepted**, the conventional webhook response: *"I've received the event and taken responsibility for it."* Returning quickly matters — the publisher shouldn't wait on your downstream email send.
-
-## Step 5 — Let the agent drive it
-
-Here's the payoff from choosing MCP in part 2. The agent connects to the orders service through the **MCP toolkit**, which discovers tools automatically. We added `updateStatus` to the service — so the agent *already* has it. The `tools` list in `agents.bal` doesn't change at all:
-
-```ballerina
-    // The policy RAG tool from Part 1, plus EVERY tool the orders MCP service publishes
-    // (getStatus, createOrder, removeOrder, and now updateStatus) — added as a single toolkit.
-    // The new updateStatus tool is picked up automatically; the tools list never changed.
-    tools = [searchVoltMartPolicies, ordersToolKit]
-```
-
-The only thing we *do* change is the agent's instructions, so it knows when this new tool is appropriate. Add one line to the **USING YOUR TOOLS** section of the system prompt:
+The only thing to change is the agent's instructions, so it knows when the new tool is appropriate. In the **voltmart-support** agent, click the **AI Agent** node, open the **Instructions** editor, and add one line to the **USING YOUR TOOLS** section:
 
 ```
 - To advance an order's status (processing → shipped → delivered), call updateStatus with the order number and the new status. The customer is automatically notified of the change, so do not separately promise to "let them know" — just confirm the new status.
 ```
 
-That's it. The agent can now move an order forward, and the customer gets pinged automatically.
+Select **Save**. That's it — the agent can now move an order forward, and the customer gets pinged automatically.
 
 > **Who actually triggers this?** In a real shop, a status change usually comes from a warehouse system, not a chat. The webhook fires no matter what calls `updateStatus` — the agent is just one possible trigger. Exposing it as an agent tool is handy for staff-facing assistants ("mark #10588 as shipped") and makes the end-to-end flow easy to demo, which is exactly what we'll do next.
 

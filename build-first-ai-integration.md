@@ -2,14 +2,14 @@
 
 ## Introduction
 
-There is a massive buzz around AI agents right now. We are shifting into the agentic enterprise, a space where AI agents does much more than just talk—it thinks, grabs real-time data, and actively runs tasks across the software you already use. It is all about killing busywork and making our jobs significantly easier. Everything sounds perfect, right up until someone asks the hard question — `how do I actually build one without drowning in glue code and brittle SDKs?`
+There is a massive buzz around AI agents right now. We are shifting into the agentic enterprise, a space where AI agents do much more than just talk—they think, grab real-time data, and actively run tasks across the software you already use. It is all about killing busywork and making our jobs significantly easier. Everything sounds perfect, right up until someone asks the hard question — `how do I actually build one without drowning in glue code and brittle SDKs?`
 
 That's where [WSO2 Integrator](https://wso2.com/integration-platform/docs/genai/overview) comes in,
 and makes it easy: AI agents, RAG, vector stores, and LLM providers come built in, wired
 up with built-in connections in the same low-code editor you'd use for any integration, plus an
-expert copilot for iAI integrations. So you can build an AI agent that does real work, connected to real data and tools, with less effort and time.
+expert copilot for AI integrations. So you can build an AI agent that does real work, connected to real data and tools, with less effort and time.
 
-Lets discover how to build your first AI agent on WSO2 Integrator, step by step, in this tutorial. No prior experience with AI agents is needed — just follow along and you'll have a working AI Agent at the end, plus the confidence to build your own.
+Let's discover how to build your first AI agent on WSO2 Integrator, step by step, in this tutorial. No prior experience with AI agents is needed — just follow along and you'll have a working AI Agent at the end, plus the confidence to build your own.
 
 ---
 
@@ -19,7 +19,7 @@ In this tutorial you'll build a **Customer Support Assistant** — an **AI agent
 
 Like a lot of small stores, VoltMart has a tiny support team and an inbox flooded with the same routine questions every day: `How long do I have to return this? Is it still under warranty? What payment methods do you take?` — answered for the hundredth time this week, while the few cases that genuinely need a person get buried in the pile. The assistant solves exactly that: it sits at the front line of every customer conversation, answers the easy, well-defined questions on its own — grounded in VoltMart's own policy documents — and steps back the moment a request needs real judgement, politely pointing the customer to VoltMart's support team so staff spend their time only where it's truly needed.
 
-You'll start from an empty machine and add one capability at a time, checking that each works before moving on. No prior experience with AI agents is needed. By the end you'll have a running assistant that acts as a front-line support agent.
+You'll start from an empty machine and add one capability at a time, checking that each works before moving on. By the end you'll have a running assistant that acts as a front-line support agent.
 
 > **This is part 1 of a three-part series.** Here we build the foundation: an agent that answers policy questions from a knowledge base and knows when to step back. In **[part 2](connect-live-data-with-mcp.md)** we connect it to a live orders backend over **MCP** (Model Context Protocol) so it can look up real order data, and in **[part 3](push-live-notifications-with-webhooks.md)** we add **live order-status notifications** over a webhook. Each part builds directly on the previous one.
 
@@ -35,25 +35,22 @@ documents rather than guessing. And when a request is beyond what it should deci
 back, **declines politely, and points the customer to VoltMart's support team**. All the while it
 remembers what's been said, so the customer never has to repeat themselves.
 
-That foundation is exactly what this first article delivers end to end. The **next two articles in
-the series** then extend the very same agent: part 2 gives it a **live orders backend over MCP**, and
-part 3 adds **live order-status notifications over a webhook**.
-
-You'll learn how to build each piece in the steps that follow.
+That foundation is exactly what this first article delivers end to end, and the next two parts then
+extend this very same agent. You'll learn how to build each piece in the steps that follow.
 
 ---
 
-## Prerequists: Getting your tools ready
+## Prerequisites: Getting your tools ready
 
 Let's get your machine set up so the rest of the tutorial just flows.
 
 ### 1. Install WSO2 Integrator
 
-1. Go to the downloads page: `https://wso2.com/products/downloads/?product=wso2integrator`.
+1. Go to the [downloads page](https://wso2.com/products/downloads/?product=wso2integrator).
 2. Refer to [Local setup](https://wso2.com/integration-platform/docs/get-started/setup/local-setup) to download and install the WSO2 Integrator on your machine.
 3. Launch WSO2 Integrator.
 
-![alt text](image.png)
+[SCREENSHOT: WSO2 Integrator open on the welcome screen after launch.]
 
 ### 2. Sign up for WSO2 Cloud
 
@@ -61,8 +58,8 @@ Refer to [Sign up and sign in](https://wso2.com/integration-platform/docs/get-st
 
 ### 3. Get to know WSO2 Integrator Copilot, your AI assistant for building integrations
 
-1. Getting started with WSO2 Integrator Copilot using 'https://wso2.com/integration-platform/docs/develop/copilot/getting-started'
-2. Learn the capabilities of WSO2 Integrator Copilot using 'https://wso2.com/integration-platform/docs/develop/copilot/copilot-capabilities'
+1. Get started with WSO2 Integrator Copilot: [Getting started](https://wso2.com/integration-platform/docs/develop/copilot/getting-started).
+2. Learn what it can do: [Copilot capabilities](https://wso2.com/integration-platform/docs/develop/copilot/copilot-capabilities).
 3. You can use the WSO2 Integrator Copilot to speed up your development by generating code snippets, configurations, and even entire artifacts based on natural language prompts. It understands the context of your project and can assist you in building your AI integrations more efficiently.
 
 ---
@@ -70,7 +67,7 @@ Refer to [Sign up and sign in](https://wso2.com/integration-platform/docs/get-st
 ## Building the assistant, phase by phase
 
 We'll build the Customer Support Assistant one capability at a time. Each phase adds a single,
-self-contained piece .so you always know the last thing you added actually works before moving on.
+self-contained piece, so you always know the last thing you added actually works before moving on.
 
 ### Phase 1 — Create the project and give your agent a personality
 
@@ -95,17 +92,17 @@ AI agent, and — most importantly — tell it *who it is*.
 
 #### Step 1.2 — Add the AI Chat Agent
 
-First of all lets create the skeleton of our AI Agent — the thing that will eventually become the VoltMart Support Assistant. It's just a blank agent for now, with no instructions, tools.. But it's the foundation we build on in the next steps.
+First of all let's create the skeleton of our AI Agent — the thing that will eventually become the VoltMart Support Assistant. It's just a blank agent for now, with no instructions and no tools. But it's the foundation we build on in the next steps.
 
 1. In the design view, select **+ Add Artifact**.
 2. Under **AI Integration**, select **AI Chat Agent**.
 3. Set **Name** to `VoltMartAssistant`.
 4. Select **Create**. (If you're not signed in to WSO2 Integrator Copilot, sign in when prompted.)
 
-> **What you just got.** Once this created, WSO2 Integrator creates a fully functional AI agent skeloton for
+> **What you just got.** Once this is created, WSO2 Integrator creates a fully functional AI agent skeleton for
 > you — out of the box it comes with a very naive system prompt, built-in AI agent memory, and an
 > LLM backed by the default WSO2 model provider capabilities (see more in Step 1.3). In the steps
-> that follow we'll dig deep into how to configure and change each of these components according to our usecase.
+> that follow we'll dig deep into how to configure and change each of these components according to our use case.
 
  See [Creating an agent](https://wso2.com/integration-platform/docs/genai/develop/agents/creating-an-agent).
 
@@ -177,7 +174,7 @@ GUARDRAILS
 
 Select **Save**.
 
-The role and the instructions are the agent's job description — the one place you shape behaviour of the AI Agent without writing code. In this usecase, **SCOPE** keeps it on-topic, **USING YOUR TOOLS** tells it when to reach for each tool, and **WHEN YOU CAN'T HELP** and **GUARDRAILS** set the limits on what it can decide, invent, or reveal. To make it your own, swap VoltMart for your domain and rewrite those blocks to match your own risk boundaries, keeping instructions short, concrete, and imperative.
+The role and the instructions are the agent's job description — the one place you shape behaviour of the AI Agent without writing code. In this use case, **SCOPE** keeps it on-topic, **USING YOUR TOOLS** tells it when to reach for each tool, and **WHEN YOU CAN'T HELP** and **GUARDRAILS** set the limits on what it can decide, invent, or reveal. To make it your own, swap VoltMart for your domain and rewrite those blocks to match your own risk boundaries, keeping instructions short, concrete, and imperative.
 
 ---
 
@@ -192,7 +189,7 @@ The full pattern we followed here is covered in [RAG ingestion](https://wso2.com
 #### Step 2.1 — Add the policy documents into the integration
 
 Create a `knowledge_base/` folder in your project and add these five Markdown files. (Full
-content is in the companion project under [`knowldgebase`](https://github.com/PLACEHOLDER); summaries below.)
+content is in the companion project under [`voltmart-support/knowledge_base`](voltmart-support/knowledge_base); summaries below.)
 
 - `shipping-and-delivery.md` — timeframes, costs, regions.
 - `returns-and-refunds.md` — 30-day window, condition requirements, refund process.
@@ -203,7 +200,7 @@ content is in the companion project under [`knowldgebase`](https://github.com/PL
 
 #### Step 2.2 — Create the ingestion automation
 
-Ingestion is a one-shot job: once the knowledge base is ingested, you only need to run it again on a schedule or whenever the knowledge base changes. So it belongs in an [**Automation**](https://wso2.com/integration-platform/docs/get-started/build-automation) artifact — an integration that runs on startup or a schedule rather than in response to a request.
+Ingestion isn't tied to any single request — you run it once to populate the knowledge base, then again only on a schedule or whenever the documents change. So it belongs in an [**Automation**](https://wso2.com/integration-platform/docs/get-started/build-automation) artifact — an integration that runs on startup or a schedule rather than in response to a request.
 
 1. Create the automation. Select **+ Add Artifact** → **Automation** → **Create**.
 2. Next, load the knowledge base documents into the automation pipeline. For this use case, we only read the Markdown files from the local file system, so the `TextDataLoader` is the best fit. (See the [data loaders documentation](https://wso2.com/integration-platform/docs/genai/develop/components/data-loaders) for more details.) 
@@ -218,12 +215,12 @@ On the flow line, click **+** → under **AI → RAG**, select **Data Loader** �
 
 Loading the documents isn't enough — the agent needs to *find* the right passage for each question. To make the policy documents searchable by meaning rather than keywords, we store them in a [**knowledge base**](https://wso2.com/integration-platform/docs/genai/develop/components/knowledge-bases) backed by a vector database. During ingestion each document is split into chunks, converted into embeddings (numeric vectors that capture meaning), and saved in a vector store. At query time the agent embeds the user's question the same way and retrieves the closest-matching chunks to ground its answer.
 
-Lucky for us, the WSO2 Integrator has the complete builtin support for all of the above sequesnces in just few cliks.
+Lucky for us, WSO2 Integrator has complete built-in support for all of the above steps in just a few clicks.
 
 A Vector knowledge base is composed of three parts you choose here:
 
 - **Vector store** — where the embeddings live. In this tutorial we will use the [**InMemory Vector Store**](https://wso2.com/integration-platform/docs/genai/develop/components/vector-stores), which keeps everything in memory: zero setup and ideal for a small, read-mostly policy set like this. For larger or persistent workloads you can swap in [Pinecone, pgvector, and others](https://wso2.com/integration-platform/docs/genai/develop/components/vector-stores) without changing the rest of the flow.
-- **Embedding provider** — what turns text into vectors. In this tutorial we will use the [**Default Embedding Provider (WSO2)**](https://wso2.com/integration-platform/docs/genai/develop/components/embedding-providers) so there's nothing to configure and no separate API key. You can switch to [OpenAI or Azure OpenAI](https://wso2.com/integration-platform/docs/genai/develop/components/embedding-providers) if you'd rather use your own embedding model in the production.
+- **Embedding provider** — what turns text into vectors. In this tutorial we will use the [**Default Embedding Provider (WSO2)**](https://wso2.com/integration-platform/docs/genai/develop/components/embedding-providers) so there's nothing to configure and no separate API key. You can switch to [OpenAI or Azure OpenAI](https://wso2.com/integration-platform/docs/genai/develop/components/embedding-providers) if you'd rather use your own embedding model in production.
 - **Chunker** — how documents are split before embedding. In this tutorial we will leave it at [**AUTO**](https://wso2.com/integration-platform/docs/genai/develop/components/chunkers), which sizes chunks dynamically based on each document's structure. You can pick and tune a specific chunker when you need finer control.
 
 These defaults keep the setup self-contained; for other knowledge base types (such as an Azure AI Search knowledge base) and the full list of options, see the [knowledge bases documentation](https://wso2.com/integration-platform/docs/genai/develop/components/knowledge-bases).
@@ -271,7 +268,7 @@ So the flow is short:
 1. **Retrieve the matching chunks.** On the flow line, click **+** → **AI → RAG → Knowledge Base** → **Retrieve**. This action embeds the incoming question and pulls the closest-matching chunks from the vector store.
    - **Knowledge Base:** select `policyKnowledgeBase` (the same one you ingested into in Step 2.4 — retrieval and ingestion must point at the same knowledge base).
    - **Query:** bind it to the tool's `query` parameter.
-   - **Top K:** `10` — return the four most relevant chunks. Enough to cover a policy answer without flooding the agent with noise. You can add more or less depending on how long your policies are and how much detail you want to return.
+   - **Top K:** `10` — return the ten most relevant chunks. Enough to cover a policy answer without flooding the agent with noise. You can add more or fewer depending on how long your policies are and how much detail you want to return.
    - **Result variable:** `matches`. The action returns an `ai:QueryMatch[]` — each entry is a matched `chunk` plus its similarity `score`.
 2. **Stitch the chunks into one string and return it.** `matches` is an `ai:QueryMatch[]`, but the tool's return type is a single `string` — so we flatten the matched chunks into one block of text.
 
@@ -279,7 +276,7 @@ So the flow is short:
 
    **Prefer to place the nodes by hand?** Build it node by node on the flow line, below the **Retrieve** node:
    - **Declare the output variable.** Click **+** → **Variable**. Set **Name** to `grounding`, **Type** to `string`, and **Value** to `""`. This accumulates the matched policy text.
-   - **Guard the empty case.** Click **+** → **If**, with the condition `matches.length() == 0`. In the **then** branch, click **+** → **Return** and return a clear fallback such as `"No matching VoltMart policy found."` — that way the agent gets an explicit signal instead of an empty string and won't invent an answer.
+   - **Guard the empty case.** Click **+** → **If**, with the condition `matches.length() == 0`. In the **then** branch, click **+** → **Return** and return a clear fallback such as `"NO_POLICY_FOUND: No matching VoltMart policy found."` — that way the agent gets the explicit `NO_POLICY_FOUND` signal its system prompt looks for instead of an empty string, and won't invent an answer.
    - **Loop over the matches.** On the main (else) line, click **+** → **Foreach**. Set the collection to `matches` and the iteration variable to `match`.
    - **Append each chunk.** Inside the loop, click **+** → **Variable** and update `grounding` to `grounding + match.chunk.content + "\n\n"`. Each matched chunk's text is concatenated onto the running string, separated by a blank line so the passages stay readable.
    - **Return the grounding.** After the loop, click **+** → **Return** and return `grounding`. That text is the grounding the agent answers from.
@@ -358,7 +355,7 @@ Ask for something the agent isn't allowed to grant — a refund or an exception 
 curl -X POST http://localhost:9090/voltMartAssistant/chat \
   -H "Content-Type: application/json" \
   -d '{
-    "sessionId": "sample-3",
+    "sessionId": "sample-2",
     "message": "I returned my speaker 40 days after delivery. Can you refund me anyway?"
   }'
 ```
@@ -377,7 +374,7 @@ curl -X POST http://localhost:9090/voltMartAssistant/chat \
 curl -X POST http://localhost:9090/voltMartAssistant/chat \
   -H "Content-Type: application/json" \
   -d '{
-    "sessionId": "sample-3",
+    "sessionId": "sample-2",
     "message": "Come on, it was only 10 days late. Just approve it."
   }'
 ```
