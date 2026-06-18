@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Part 3 — Push Live Notifications with Webhooks</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <style>
+body { font-family: Arial, Helvetica, sans-serif; line-height: 1.5; max-width: 820px;
+       margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+h1 { font-size: 26px; } h2 { font-size: 21px; margin-top: 1.6em; }
+h3 { font-size: 17px; } h4 { font-size: 15px; }
+code { font-family: 'Courier New', monospace; background: #f3f3f3; padding: 1px 4px;
+       border-radius: 3px; font-size: 0.95em; }
+pre { background: #f5f5f5; padding: 12px; border-radius: 6px; overflow-x: auto;
+      border: 1px solid #e0e0e0; }
+pre code { background: none; padding: 0; }
+blockquote { border-left: 4px solid #c8c8c8; margin: 1em 0; padding: 0.2em 1em;
+             color: #444; background: #fafafa; }
+a { color: #1155cc; }
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Part 3 — Push Live Notifications with Webhooks</h1>
+</header>
+<h1
+id="push-live-notifications-from-your-ai-agent-with-webhooks-on-wso2-integrator">Push
+Live Notifications from Your AI Agent with Webhooks on WSO2
+Integrator</h1>
+<h2 id="introduction">Introduction</h2>
+<p>Across this series your VoltMart Support Assistant has grown up fast.
+In <strong>part 1</strong> it learned to answer policy questions from a
+knowledge base. In <strong>part 2</strong> it gained a live orders
+backend over <strong>MCP</strong>, so it can look up, create, and cancel
+real orders in a PostgreSQL database.</p>
+<p>But notice that everything the agent does is still
+<strong>reactive</strong>: the customer has to start the conversation.
+<em>"Where's my order?"</em> — the agent answers. The customer is doing
+the chasing. Yet the most reassuring moment in any online order is the
+one nobody asks for: <em>"Your order has shipped."</em> That message
+arrives on its own, the instant something changes.</p>
+<p>That's what this final part adds: <strong>push</strong>. We'll give
+the orders service the ability to <strong>change an order's
+status</strong> and, the moment it does, fire a <strong>webhook</strong>
+that delivers a live notification to the customer — no question
+required. Then, because the agent connects over MCP, it picks up the new
+capability automatically and can drive these status changes itself.</p>
+<p>If you've followed parts 1 and 2, you have everything you need. Let's
+close the loop.</p>
+<hr />
+<h2 id="what-is-a-webhook-and-why-here">What is a webhook, and why
+here?</h2>
+<p>A <strong>webhook</strong> is a reverse API call. Instead of a client
+repeatedly asking <em>"anything new yet?"</em> (polling), the system
+that <em>has</em> the news makes an HTTP call <strong>out</strong> to a
+URL you registered, the moment the event happens. It's the difference
+between refreshing a tracking page every hour and getting a text the
+second your package ships.</p>
+<p>For VoltMart this is exactly the right tool. Order status changes are
+<strong>events</strong> — discrete, timed, and worth knowing about
+immediately. Polling the database for changes would be wasteful and
+slow; a webhook delivers the notification at the instant of the change,
+to whatever channel actually reaches the customer (email, SMS, push,
+their app).</p>
+<p>So we add two things:</p>
+<ul>
+<li>A <strong>publisher</strong> — the orders service gains a
+status-change tool that updates the database and then POSTs a
+notification event.</li>
+<li>A <strong>subscriber</strong> — a small notifications service that
+receives those events and turns them into customer-facing messages.</li>
+</ul>
+<p>And because the publisher is just another MCP tool, the agent gains
+the ability to advance an order's status with zero new wiring — the same
+automatic discovery you saw in part 2.</p>
+<hr />
+<h2 id="what-we-are-going-to-build">What we are going to build</h2>
+<p>Building on the part-2 project, we'll add:</p>
+<ol type="1">
+<li><strong>An <code>updateStatus</code> MCP tool</strong> on the orders
+service. It moves an order through
+<code>processing → shipped → delivered</code>, writes the change to
+PostgreSQL, and <strong>fires a webhook</strong>.</li>
+<li><strong>A notifications receiver</strong> — a standalone webhook
+subscriber that receives the event and composes the message the customer
+would actually get.</li>
+<li><strong>The agent, unchanged in wiring</strong> — it discovers
+<code>updateStatus</code> automatically over MCP; we only update its
+instructions so it knows when to use it.</li>
+</ol>
+<h3 id="architecture">Architecture</h3>
+<blockquote>
+<p>🖼️ <strong>[INSERT IMAGE HERE — VoltMart webhook architecture: the
+agent calls updateStatus over MCP on the orders service; the orders
+service writes the new status to PostgreSQL and fires a webhook to the
+notifications receiver, which sends the customer their live
+notification.]</strong></p>
+</blockquote>
+<p>The flow reads left to right and then <em>pushes</em> right to left:
+the agent (or any MCP client) calls <code>updateStatus</code>; the
+orders service updates <strong>PostgreSQL</strong> and immediately POSTs
+a status-change event to the <strong>notifications receiver</strong>;
+the receiver delivers the customer's notification. The webhook is
+fire-and-forget — the status change succeeds regardless of whether
+notification delivery does.</p>
+<blockquote>
+<p><strong>Companion code.</strong> You'll build everything below in the
+low-code editor. The finished projects — the part-2 orders service with
+the webhook added, plus the new notifications receiver — are in the <a
+href="voltmart-orders-webhook"><code>voltmart-orders-webhook</code></a>
+folder if you'd rather read or run the result.</p>
+</blockquote>
+<hr />
+<h2 id="prerequisites">Prerequisites</h2>
+<p>Everything from <strong>part 2</strong> — WSO2 Integrator, Docker,
+and the part-2 projects (the agent and the orders MCP service with its
+database). We build directly on top of them.</p>
+<hr />
+<h2 id="step-1--build-the-notifications-receiver-the-subscriber">Step 1
+— Build the notifications receiver (the subscriber)</h2>
+<p>We'll build the subscriber first, so there's something live for the
+webhook to call. This is a stand-in for whatever channel actually
+reaches the customer — an email service, an SMS gateway, a push
+provider. It's a plain HTTP service that listens for status-change
+events.</p>
+<ol type="1">
+<li>In WSO2 Integrator, create a new integration. Set
+<strong>Integration Name</strong> to <code>VoltMartNotifications</code>
+and <strong>Project Name</strong> to
+<code>notifications-receiver</code>, then <strong>Create
+Integration</strong>.</li>
+<li>Add the endpoint that receives webhooks. Select <strong>+ Add
+Artifact</strong> → <strong>Service</strong>, and configure it:
+<ul>
+<li><strong>Listener port:</strong> <code>9091</code>.</li>
+<li><strong>Base path:</strong> <code>/notifications</code>.</li>
+<li>Add a resource with <strong>HTTP method</strong> <code>POST</code>
+and <strong>path</strong> <code>order-status</code> — so the full
+webhook URL is
+<code>http://localhost:9091/notifications/order-status</code>.</li>
+<li><strong>Payload:</strong> accept the incoming JSON event (order
+number, account email, item, previous status, new status, ETA).</li>
+</ul></li>
+<li>Select <strong>Create</strong>. WSO2 Integrator opens the resource's
+flow diagram.</li>
+</ol>
+<p>[SCREENSHOT: The Service creation form with port 9091, base path
+/notifications, and the POST order-status resource.]</p>
+<p>Now build the flow that turns an event into a customer message.</p>
+<p><strong>⚡ With WSO2 Integrator Copilot (fastest path).</strong>
+Click <strong>Generate with AI</strong> and describe it — <em>"From the
+incoming status-change payload, compose a friendly customer message
+based on the new status (shipped → 'has shipped', delivered → 'was
+delivered', otherwise a generic update), log it as the notification sent
+to the customer's email, and respond with 202 Accepted."</em> Review and
+<strong>Keep</strong>.</p>
+<p><strong>Prefer to build it by hand?</strong> On the flow line:</p>
+<ol type="1">
+<li>Click <strong>+</strong> → <strong>Log</strong> (Info) and write a
+message that includes the customer's email and a line composed from the
+event — e.g. <em>"Good news! Your VoltMart order #10588 (SoundDock 2
+Bluetooth speaker) has shipped."</em> In a real system this node would
+be an <strong>email/SMS connector</strong> action instead of a log.</li>
+<li>Click <strong>+</strong> → <strong>Return</strong> (or set the
+resource response) to reply <strong>202 Accepted</strong> — the
+conventional webhook acknowledgement that says <em>"I've received the
+event and taken responsibility for it."</em></li>
+</ol>
+<p>Run this project (<strong>Run</strong> button). It now waits on port
+<code>9091</code> for webhooks — nothing calls it yet, which we fix
+next.</p>
+<blockquote>
+<p>💡 <strong>Why 202, and why fire-and-forget?</strong> The receiver
+returns quickly and the publisher never waits on a downstream email
+send. Coupling a database change to the availability of a notification
+channel would be fragile — so we keep them independent.</p>
+</blockquote>
+<h2 id="step-2--add-the-webhook-connection-to-the-orders-service">Step 2
+— Add the webhook connection to the orders service</h2>
+<p>Switch back to the <strong>orders-service</strong> project from part
+2. For the service to call <em>out</em> to the receiver, it needs an
+<strong>HTTP connection</strong> pointing at it.</p>
+<ol type="1">
+<li>In the design view, select <strong>+ Add Artifact</strong> →
+<strong>Connection</strong>.</li>
+<li>In the connector store, search for <strong>HTTP</strong> and select
+it.</li>
+<li>In the <strong>Add New Connection</strong> form, set the
+<strong>Base URL</strong> to
+<code>http://localhost:9091/notifications</code> and name the connection
+<code>notifier</code>.</li>
+<li>Select <strong>Create</strong>.</li>
+</ol>
+<p>[SCREENSHOT: The HTTP "Add New Connection" form pointing at the
+notifications receiver.]</p>
+<p>That's the outbound channel. The status-change tool we build next
+will use it to deliver the event.</p>
+<h2 id="step-3--add-the-updatestatus-tool-that-fires-the-webhook">Step 3
+— Add the <code>updateStatus</code> tool that fires the webhook</h2>
+<p>Now the centerpiece. Open the <strong>VoltMart Orders MCP
+service</strong> (the same one from part 2) and click <strong>+ Add
+Tool</strong> — exactly as you added the other three. This tool moves an
+order forward and pushes a notification in the same flow.</p>
+<p><strong>Add the tool.</strong> Fill in the form:</p>
+<ol type="1">
+<li><p><strong>Name:</strong> <code>updateStatus</code>.</p></li>
+<li><p><strong>Description:</strong> what the agent reads to decide when
+to use it:</p>
+<pre><code>Update the status of a VoltMart order and send the customer a live notification. Call this when an order moves forward in fulfillment, e.g. from &quot;processing&quot; to &quot;shipped&quot; or from &quot;shipped&quot; to &quot;delivered&quot;. The new status MUST be one of: processing, shipped, delivered. On success the customer is notified automatically. Returns ORDER_NOT_FOUND if no order matches the number, or INVALID_STATUS if the status is not one of the allowed values.</code></pre></li>
+<li><p><strong>Parameters:</strong> two <code>string</code> parameters —
+<code>orderNumber</code> and <code>newStatus</code> (<em>"The new
+status: processing, shipped, or delivered."</em>).</p></li>
+<li><p><strong>Return Type:</strong> <code>string</code>.</p></li>
+<li><p>Select <strong>Save</strong> to open the tool's flow
+diagram.</p></li>
+</ol>
+<p>Now build the flow — it does three things in order: validate, update
+the database, fire the webhook.</p>
+<p><strong>⚡ With WSO2 Integrator Copilot (fastest path).</strong>
+Click <strong>Generate with AI</strong> and describe it — <em>"If
+<code>newStatus</code> isn't one of processing/shipped/delivered, return
+<code>\"INVALID_STATUS\"</code>. Look the order up in the
+<code>ordersDb</code> connection; if it's missing, return
+<code>\"ORDER_NOT_FOUND\"</code>. Otherwise update the order's status
+(and a matching ETA line) in <code>ordersDb</code>, then POST a
+status-change event — order number, account email, item, previous
+status, new status, ETA — to the <code>notifier</code> HTTP connection's
+<code>/order-status</code> path. Don't fail the tool if the POST fails;
+just carry on. Return a confirmation line."</em> Review and
+<strong>Keep</strong>.</p>
+<p><strong>Prefer to place the nodes by hand?</strong> On the flow
+line:</p>
+<ol type="1">
+<li><strong>Validate the status.</strong> Click <strong>+</strong> →
+<strong>If</strong>, checking that <code>newStatus</code> is one of
+<code>processing</code>, <code>shipped</code>, <code>delivered</code>.
+In the <strong>else</strong> branch (when it isn't),
+<strong>Return</strong>
+<code>"INVALID_STATUS: Status must be one of processing, shipped, or delivered."</code></li>
+<li><strong>Fetch the order.</strong> Click <strong>+</strong> →
+<strong>Connections</strong> → <code>ordersDb</code> → the
+<strong>query</strong> action, selecting the order by
+<code>orderNumber</code>. Bind it to <code>order</code>. Add an
+<strong>If</strong> for the not-found case that <strong>Returns</strong>
+<code>"ORDER_NOT_FOUND: No VoltMart order matches that number."</code></li>
+<li><strong>Update the database.</strong> Click <strong>+</strong> →
+<strong>Connections</strong> → <code>ordersDb</code> → the
+<strong>execute</strong> action running an <code>UPDATE</code> that sets
+the new status (and a friendly ETA line — e.g. <em>"on its way, arriving
+in 2-3 business days"</em> for shipped).</li>
+<li><strong>Fire the webhook.</strong> Click <strong>+</strong> →
+<strong>Connections</strong> → <code>notifier</code> → the
+<strong>POST</strong> action. Set the path to <code>/order-status</code>
+and the body to a JSON event built from the order: order number, account
+email, item, the <strong>previous</strong> status, the new status, and
+the ETA. This is the single node that turns a database change into a
+live customer notification.</li>
+<li><strong>Return a confirmation.</strong> Click <strong>+</strong> →
+<strong>Return</strong> with a line like
+<code>Order #10588 (SoundDock 2 Bluetooth speaker) is now "shipped". The customer has been notified.</code></li>
+</ol>
+<p>[SCREENSHOT: The updateStatus tool flow — validate, query, update,
+the notifier POST node, and the Return.]</p>
+<blockquote>
+<p><strong>Keep delivery best-effort.</strong> The order status changes
+in the database <em>before</em> the webhook fires, and a failed POST
+should not fail the tool — the order really did move. If you're building
+by hand, wrap the POST so a delivery error is logged and ignored rather
+than propagated. (The companion project does exactly this.)</p>
+</blockquote>
+<h2 id="step-4--let-the-agent-drive-it">Step 4 — Let the agent drive
+it</h2>
+<p>Here's the payoff from choosing MCP in part 2. The agent connects to
+the orders service through the <strong>Use MCP Server</strong> tool you
+added in part 2, and MCP discovers tools automatically. You just added
+<code>updateStatus</code> to that service — so the agent will pick it up
+with <strong>no changes to its tool configuration at all</strong>. (If
+the agent was running, restart it so it re-discovers the service's
+tools.)</p>
+<p>The only thing to change is the agent's instructions, so it knows
+when the new tool is appropriate. In the
+<strong>voltmart-support</strong> agent, click the <strong>AI
+Agent</strong> node, open the <strong>Instructions</strong> editor, and
+add one line to the <strong>USING YOUR TOOLS</strong> section:</p>
+<pre><code>- To advance an order&#39;s status (processing → shipped → delivered), call updateStatus with the order number and the new status. The customer is automatically notified of the change, so do not separately promise to &quot;let them know&quot; — just confirm the new status.</code></pre>
+<p>Select <strong>Save</strong>. That's it — the agent can now move an
+order forward, and the customer gets pinged automatically.</p>
+<blockquote>
+<p><strong>Who actually triggers this?</strong> In a real shop, a status
+change usually comes from a warehouse system, not a chat. The webhook
+fires no matter what calls <code>updateStatus</code> — the agent is just
+one possible trigger. Exposing it as an agent tool is handy for
+staff-facing assistants ("mark #10588 as shipped") and makes the
+end-to-end flow easy to demo, which is exactly what we'll do next.</p>
+</blockquote>
+<hr />
+<h2 id="take-it-for-a-spin">Take it for a spin</h2>
+<p>This time there are <strong>four</strong> things to run. Start them
+in order:</p>
+<ol type="1">
+<li><strong>The database:</strong> <code>docker compose up -d</code>
+(from <code>orders-service</code>).</li>
+<li><strong>The notifications receiver:</strong> open the
+<code>notifications-receiver</code> project and click
+<strong>Run</strong> (comes up on port 9091).</li>
+<li><strong>The orders MCP service:</strong> <strong>Run</strong> the
+<code>orders-service</code> project (port 8290).</li>
+<li><strong>The agent:</strong> <strong>Run</strong> the
+<code>voltmart-support</code> project (port 9090).</li>
+</ol>
+<p>Keep an eye on the <strong>notifications receiver's console</strong>
+— that's where the live notification will appear.</p>
+<h4 id="sample-1--a-status-change-pushes-a-live-notification">Sample 1 —
+A status change pushes a live notification</h4>
+<p>Tell the agent to ship an order:</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-X</span> POST http://localhost:9090/voltMartAssistant/chat <span class="dt">\</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Content-Type: application/json&quot;</span> <span class="dt">\</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">-d</span> <span class="st">&#39;{</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;sessionId&quot;: &quot;wh-1&quot;,</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;message&quot;: &quot;Mark order #10588 as shipped.&quot;</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="st">  }&#39;</span></span></code></pre></div>
+<p><strong>Agent output:</strong></p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="st">&quot;Done — order #10588 (SoundDock 2 Bluetooth speaker) is now shipped, and we&#39;ve let the customer know it&#39;s on its way, arriving in 2-3 business days.&quot;</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>And almost instantly, in the <strong>notifications receiver's
+console</strong>, the live notification arrives:</p>
+<pre><code>time=... level=INFO module=voltmart/notifications_receiver message=&quot;Customer notification sent&quot; to=priya@example.com orderNumber=10588 body=&quot;Good news! Your VoltMart order #10588 (SoundDock 2 Bluetooth speaker) has shipped — on its way, arriving in 2-3 business days.&quot;</code></pre>
+<p><em>Expected behavior:</em> the agent calls <code>updateStatus</code>
+over MCP → the orders service updates PostgreSQL and fires the webhook →
+the receiver composes and "sends" the customer's message. That's the
+full push loop, end to end.</p>
+<h4 id="sample-2--confirm-the-change-actually-stuck">Sample 2 — Confirm
+the change actually stuck</h4>
+<p>The notification is nice, but the database is the source of truth.
+Verify the status really moved:</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> exec <span class="at">-it</span> voltmart-orders-db <span class="dt">\</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  psql <span class="at">-U</span> voltmart <span class="at">-d</span> voltmart_orders <span class="at">-c</span> <span class="st">&quot;SELECT order_number, status, eta FROM orders WHERE order_number = &#39;10588&#39;;&quot;</span></span></code></pre></div>
+<p>You'll see <code>10588</code> now reads <code>shipped</code>. A
+follow-up <code>getStatus</code> from the agent (with
+<code>priya@example.com</code>) will report the new status too — the
+same live data, read back.</p>
+<h4 id="sample-3--a-bad-status-is-rejected-cleanly">Sample 3 — A bad
+status is rejected cleanly</h4>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-X</span> POST http://localhost:9090/voltMartAssistant/chat <span class="dt">\</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Content-Type: application/json&quot;</span> <span class="dt">\</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">-d</span> <span class="st">&#39;{</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;sessionId&quot;: &quot;wh-3&quot;,</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;message&quot;: &quot;Set order #10219 to gift-wrapped.&quot;</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="st">  }&#39;</span></span></code></pre></div>
+<p><strong>Agent output:</strong></p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="st">&quot;I can only move an order to processing, shipped, or delivered — </span><span class="ch">\&quot;</span><span class="st">gift-wrapped</span><span class="ch">\&quot;</span><span class="st"> isn&#39;</span><span class="er">\&#39;</span><span class="st">&#39;t a status I can set. Want me to mark it as one of those instead?&quot;</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><em>Expected behavior:</em> the tool returns
+<code>INVALID_STATUS</code>, no webhook fires, and the database is
+untouched.</p>
+<p>[SCREENSHOT: Two terminals side by side — the agent's shipped
+confirmation, and the notification appearing in the receiver's
+console.]</p>
+<hr />
+<h2 id="youve-built-the-whole-loop">You've built the whole loop</h2>
+<p>Look back at the series. You started with a blank machine and ended
+with an AI agent that:</p>
+<ul>
+<li><strong>answers</strong> policy questions grounded in a knowledge
+base (part 1),</li>
+<li><strong>reads and writes</strong> live order data in a real database
+over MCP (part 2), and</li>
+<li><strong>pushes</strong> live notifications to customers the instant
+an order changes (part 3).</li>
+</ul>
+<p>And the architecture stayed clean the whole way: the knowledge base,
+the orders service, and the notifications receiver are each independent
+integrations. The agent reaches the orders service through one MCP
+toolkit; the orders service reaches the customer through one webhook.
+Each piece can be changed, scaled, or reused on its own — which is
+exactly what you want when this grows from a tutorial into a production
+system.</p>
+<h3 id="where-to-go-next">Where to go next</h3>
+<ul>
+<li><strong>Multiple subscribers.</strong> Keep a list of webhook URLs
+(in the database) and fan each event out to all of them — email, SMS,
+and an internal dashboard at once.</li>
+<li><strong>Reliable delivery.</strong> Real webhooks need retries with
+backoff and a dead-letter queue for events that never get through. WSO2
+Integrator's <a
+href="https://wso2.com/integration-platform/docs/">reliable messaging
+patterns</a> fit naturally here.</li>
+<li><strong>Secure the webhook.</strong> Sign each payload (HMAC) so the
+receiver can verify it really came from the orders service, and put auth
+in front of the MCP endpoint.</li>
+<li><strong>Trigger from the real world.</strong> Wire
+<code>updateStatus</code> to an actual warehouse/shipping connector so
+status changes — and notifications — happen automatically as packages
+move.</li>
+</ul>
+<p>That's the series. You now have the full toolkit — knowledge, live
+data, and live notifications — to build agents that don't just talk, but
+act and reach back out. Go build your own.</p>
+<hr />
+</body>
+</html>

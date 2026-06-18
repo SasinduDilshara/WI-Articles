@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Part 1 — Your First AI Agent on WSO2 Integrator</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <style>
+body { font-family: Arial, Helvetica, sans-serif; line-height: 1.5; max-width: 820px;
+       margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+h1 { font-size: 26px; } h2 { font-size: 21px; margin-top: 1.6em; }
+h3 { font-size: 17px; } h4 { font-size: 15px; }
+code { font-family: 'Courier New', monospace; background: #f3f3f3; padding: 1px 4px;
+       border-radius: 3px; font-size: 0.95em; }
+pre { background: #f5f5f5; padding: 12px; border-radius: 6px; overflow-x: auto;
+      border: 1px solid #e0e0e0; }
+pre code { background: none; padding: 0; }
+blockquote { border-left: 4px solid #c8c8c8; margin: 1em 0; padding: 0.2em 1em;
+             color: #444; background: #fafafa; }
+a { color: #1155cc; }
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Part 1 — Your First AI Agent on WSO2 Integrator</h1>
+</header>
+<h1
+id="your-first-ai-agent-on-wso2-integrator---customer-support-assistant">Your
+First AI Agent on WSO2 Integrator - Customer Support Assistant</h1>
+<h2 id="introduction">Introduction</h2>
+<p>There is a massive buzz around AI agents right now. We are shifting
+into the agentic enterprise, a space where AI agents do much more than
+just talk—they think, grab real-time data, and actively run tasks across
+the software you already use. It is all about killing busywork and
+making our jobs significantly easier. Everything sounds perfect, right
+up until someone asks the hard question —
+<code>how do I actually build one without drowning in glue code and brittle SDKs?</code></p>
+<p>That's where <a
+href="https://wso2.com/integration-platform/docs/genai/overview">WSO2
+Integrator</a> comes in, and makes it easy: AI agents, RAG, vector
+stores, and LLM providers come built in, wired up with built-in
+connections in the same low-code editor you'd use for any integration,
+plus an expert copilot for AI integrations. So you can build an AI agent
+that does real work, connected to real data and tools, with less effort
+and time.</p>
+<p>Let's discover how to build your first AI agent on WSO2 Integrator,
+step by step, in this tutorial. No prior experience with AI agents is
+needed — just follow along and you'll have a working AI Agent at the
+end, plus the confidence to build your own.</p>
+<hr />
+<h2 id="what-we-are-going-to-build">What we are going to build</h2>
+<p>In this tutorial you'll build a <strong>Customer Support
+Assistant</strong> — an <strong>AI agent</strong> running on
+<strong>WSO2 Integrator</strong> — for a fictional electronics shop
+called <strong>VoltMart</strong>, which sells headphones, speakers,
+laptops, and the usual accessories.</p>
+<p>Like a lot of small stores, VoltMart has a tiny support team and an
+inbox flooded with the same routine questions every day:
+<code>How long do I have to return this? Is it still under warranty? What payment methods do you take?</code>
+— answered for the hundredth time this week, while the few cases that
+genuinely need a person get buried in the pile. The assistant solves
+exactly that: it sits at the front line of every customer conversation,
+answers the easy, well-defined questions on its own — grounded in
+VoltMart's own policy documents — and steps back the moment a request
+needs real judgement, politely pointing the customer to VoltMart's
+support team so staff spend their time only where it's truly needed.</p>
+<p>You'll start from an empty machine and add one capability at a time,
+checking that each works before moving on. By the end you'll have a
+running assistant that acts as a front-line support agent.</p>
+<blockquote>
+<p><strong>This is part 1 of a three-part series.</strong> Here we build
+the foundation: an agent that answers policy questions from a knowledge
+base and knows when to step back. In <strong><strong>part
+2</strong></strong> we connect it to a live orders backend over
+<strong>MCP</strong> (Model Context Protocol) so it can look up real
+order data, and in <strong><strong>part 3</strong></strong> we add
+<strong>live order-status notifications</strong> over a webhook. Each
+part builds directly on the previous one.</p>
+</blockquote>
+<h3 id="architecture">Architecture</h3>
+<blockquote>
+<p>🖼️ <strong>[INSERT IMAGE HERE — VoltMart Support Assistant
+architecture: a customer chats with the AI agent, which uses a system
+prompt and per-session memory to decide when to call its knowledge/RAG
+tool over a policy knowledge base. A startup automation ingests the
+policy documents into the knowledge base.]</strong></p>
+</blockquote>
+<p>Everything centres on the <strong>AI agent</strong>. A customer's
+message comes in, and the agent — guided by the instructions you give it
+— works out what the customer actually wants and routes the request to
+the right place. Straightforward questions about <strong>VoltMart's
+policies</strong> (shipping, returns, refunds, warranty, billing) it
+answers on its own, grounding every reply in VoltMart's own documents
+rather than guessing. And when a request is beyond what it should decide
+alone, it steps back, <strong>declines politely, and points the customer
+to VoltMart's support team</strong>. All the while it remembers what's
+been said, so the customer never has to repeat themselves.</p>
+<p>That foundation is exactly what this first article delivers end to
+end, and the next two parts then extend this very same agent. You'll
+learn how to build each piece in the steps that follow.</p>
+<hr />
+<h2 id="prerequisites-getting-your-tools-ready">Prerequisites: Getting
+your tools ready</h2>
+<p>Let's get your machine set up so the rest of the tutorial just
+flows.</p>
+<h3 id="1-install-wso2-integrator">1. Install WSO2 Integrator</h3>
+<ol type="1">
+<li>Go to the <a
+href="https://wso2.com/products/downloads/?product=wso2integrator">downloads
+page</a>.</li>
+<li>Refer to <a
+href="https://wso2.com/integration-platform/docs/get-started/setup/local-setup">Local
+setup</a> to download and install the WSO2 Integrator on your
+machine.</li>
+<li>Launch WSO2 Integrator.</li>
+</ol>
+<p>[SCREENSHOT: WSO2 Integrator open on the welcome screen after
+launch.]</p>
+<h3 id="2-sign-up-for-wso2-cloud">2. Sign up for WSO2 Cloud</h3>
+<p>Refer to <a
+href="https://wso2.com/integration-platform/docs/get-started/setup/sign-up-sign-in">Sign
+up and sign in</a> to do so.</p>
+<h3
+id="3-get-to-know-wso2-integrator-copilot-your-ai-assistant-for-building-integrations">3.
+Get to know WSO2 Integrator Copilot, your AI assistant for building
+integrations</h3>
+<ol type="1">
+<li>Get started with WSO2 Integrator Copilot: <a
+href="https://wso2.com/integration-platform/docs/develop/copilot/getting-started">Getting
+started</a>.</li>
+<li>Learn what it can do: <a
+href="https://wso2.com/integration-platform/docs/develop/copilot/copilot-capabilities">Copilot
+capabilities</a>.</li>
+<li>You can use the WSO2 Integrator Copilot to speed up your development
+by generating code snippets, configurations, and even entire artifacts
+based on natural language prompts. It understands the context of your
+project and can assist you in building your AI integrations more
+efficiently.</li>
+</ol>
+<hr />
+<h2 id="building-the-assistant-phase-by-phase">Building the assistant,
+phase by phase</h2>
+<p>We'll build the Customer Support Assistant one capability at a time.
+Each phase adds a single, self-contained piece, so you always know the
+last thing you added actually works before moving on.</p>
+<h3
+id="phase-1--create-the-project-and-give-your-agent-a-personality">Phase
+1 — Create the project and give your agent a personality</h3>
+<p>Every assistant starts as a blank slate. In this first phase we'll
+create the project, drop in an AI agent, and — most importantly — tell
+it <em>who it is</em>.</p>
+<h4 id="step-11--create-the-integration-project">Step 1.1 — Create the
+integration project</h4>
+<ol type="1">
+<li>From the <strong>Create New Integration</strong> card, select
+<strong>Create</strong>.</li>
+<li>Set <strong>Integration Name</strong> to
+<code>VoltMartSupport</code>.</li>
+<li>Set <strong>Project Name</strong> to
+<code>voltmart-support</code>.</li>
+<li>Select <strong>Create Integration</strong>.</li>
+</ol>
+<p>[SCREENSHOT: The "Create New Integration" dialog with the name fields
+filled in.]</p>
+<blockquote>
+<p>💡 <strong>Hint (fastest path):</strong> With the project created,
+you can let WSO2 Integrator Copilot do Steps 1.2–1.4 in one go. Click
+<strong>Generate with AI</strong> and add a proper descriptive prompt to
+create the "VoltMartAssistant" chat agent — using the default WSO2 model
+provider, exposed as an HTTP chat service, with VoltMart's customer
+support persona as its system prompt. Review the preview and click
+<strong>Keep</strong>.</p>
+</blockquote>
+<blockquote>
+<p>Prefer to build it by hand instead of using AI? Follow the steps
+below instead.</p>
+</blockquote>
+<h4 id="step-12--add-the-ai-chat-agent">Step 1.2 — Add the AI Chat
+Agent</h4>
+<p>First of all let's create the skeleton of our AI Agent — the thing
+that will eventually become the VoltMart Support Assistant. It's just a
+blank agent for now, with no instructions and no tools. But it's the
+foundation we build on in the next steps.</p>
+<ol type="1">
+<li>In the design view, select <strong>+ Add Artifact</strong>.</li>
+<li>Under <strong>AI Integration</strong>, select <strong>AI Chat
+Agent</strong>.</li>
+<li>Set <strong>Name</strong> to <code>VoltMartAssistant</code>.</li>
+<li>Select <strong>Create</strong>. (If you're not signed in to WSO2
+Integrator Copilot, sign in when prompted.)</li>
+</ol>
+<blockquote>
+<p><strong>What you just got.</strong> Once this is created, WSO2
+Integrator creates a fully functional AI agent skeleton for you — out of
+the box it comes with a very naive system prompt, built-in AI agent
+memory, and an LLM backed by the default WSO2 model provider
+capabilities (see more in Step 1.3). In the steps that follow we'll dig
+deep into how to configure and change each of these components according
+to our use case.</p>
+</blockquote>
+<p>See <a
+href="https://wso2.com/integration-platform/docs/genai/develop/agents/creating-an-agent">Creating
+an agent</a>.</p>
+<h4 id="step-13--configure-the-model-for-the-ai-agent">Step 1.3 —
+Configure the Model for the AI Agent</h4>
+<p>As mentioned above, your AI Agent is initialized with the <a
+href="https://wso2.com/integration-platform/docs/genai/develop/components/model-providers#default-wso2-model-provider"><strong>WSO2
+default model provider</strong></a> — that's the circle on the
+<strong>AI Agent</strong> node. This default provider is meant
+<strong>only for building and testing your project during the
+development phase.</strong> When you deploy to production you must
+switch to a proper model provider implementation of your own — such as
+<strong>OpenAI, Azure OpenAI, or Anthropic</strong>.</p>
+<p>So you have two options here.</p>
+<p><strong>Option A — Build and test with the WSO2 default model
+provider.</strong> This is the quickest way to get going: keep the
+default provider, build out the agent, and test it locally. Because the
+WSO2 default provider is intended purely for testing, its access token
+can <strong>expire while you're testing</strong>. If that happens, just
+re-issue it:</p>
+<ol type="1">
+<li>Open the command palette (<code>Cmd/Ctrl + Shift + P</code>).</li>
+<li>Run
+<strong><code>Ballerina: Configure default WSO2 model provider</code></strong>.</li>
+</ol>
+<p>For more details, refer to <a
+href="https://wso2.com/integration-platform/docs/genai/develop/components/model-providers#default-wso2-model-provider">Default
+WSO2 model provider</a>.</p>
+<p><strong>Option B — Switch to your own model provider (before going to
+production).</strong> Once you've finished testing, change the model
+provider to a production-grade one. To do that:</p>
+<ol type="1">
+<li>Click the <strong>model provider icon</strong> on the <strong>AI
+Agent</strong> node.</li>
+<li>Select <strong>Create New Model Provider</strong> (see <a
+href="https://wso2.com/integration-platform/docs/genai/develop/components/model-providers#where-to-find-model-providers-for-llm">Where
+to find model providers in WSO2 Integrator</a>).</li>
+<li>Choose the model provider that fits your use case (OpenAI, Azure
+OpenAI, Anthropic, etc.) and add it to the agent.</li>
+</ol>
+<blockquote>
+<p><strong>For this tutorial</strong> we'll stay on the WSO2 default
+provider so you can build and test everything without an external API
+key. See the <strong>Next steps</strong> section for the full
+provider-switching walkthrough.</p>
+</blockquote>
+<h4 id="step-14--tell-your-agent-how-to-behave">Step 1.4 — Tell your
+agent how to behave</h4>
+<p>An agent's behaviour is steered almost entirely by its system prompt
+— it's where you define the agent's persona, the scope it stays within,
+and the rules it follows when deciding what to do. The skeleton we
+created in Step 1.2 starts with an empty one, so right now the agent
+will happily answer anything. We'll replace it with a prompt that turns
+it into a focused VoltMart support agent — one that knows what it's
+responsible for and where to draw the line.</p>
+<p>Click the <strong>AI Agent</strong> node to open its configuration
+panel. Set:</p>
+<ul>
+<li><strong>Role:</strong> <code>VoltMart Support Assistant</code></li>
+<li><strong>Instructions:</strong> Click the prompt editor button in the
+form, then paste in the prompt below.</li>
+</ul>
+<pre><code>You are the front-line support assistant for VoltMart, an online consumer-electronics store (headphones, speakers, laptops, and accessories). You are friendly, sound human, and keep answers short — usually one to three sentences.
+
+SCOPE
+- Only help with VoltMart: orders, products, policies (shipping, returns, refunds, warranty, payments/billing), and basic account questions.
+- Politely decline anything unrelated and steer the customer back to VoltMart support. Do not answer general-knowledge questions.
+
+USING YOUR TOOLS
+- For ANY question about VoltMart policy (shipping, delivery, returns, refunds, warranty, payments, billing, how to track an order, account basics), call searchVoltMartPolicies FIRST and answer only from what it returns. If it returns NO_POLICY_FOUND, do not guess — tell the customer you don&#39;t have that on file and point them to VoltMart support.
+
+WHEN YOU CAN&#39;T HELP
+You cannot fully resolve every request yourself. In these cases, politely tell the customer you can&#39;t resolve it yourself and direct them to VoltMart&#39;s support team (available 8:00 AM – 8:00 PM ET, seven days a week). NEVER promise a specific outcome (no &quot;you&#39;ll get a refund&quot;). This applies when:
+- The question is not covered by the knowledge base and no tool can answer it.
+- The customer asks for the live status of a specific order — you cannot look orders up yet, so share the self-service tracking steps from the policy docs and point them to VoltMart support if they need more.
+- The customer disputes a charge, or asks for a refund, discount, or any exception to policy.
+- The customer reports a damaged, defective, or wrong item.
+- There is a complaint, a serious or legal tone, or clear frustration.
+- The customer wants to change or cancel an order (you cannot do this).
+- The customer explicitly asks to speak to a person.
+
+GUARDRAILS
+- Never invent a policy, price, date, or promise. If it is not in the knowledge base or returned by a tool, say you don&#39;t have that information and direct them to VoltMart support.
+- Never authorize refunds, discounts, or exceptions — that is for the VoltMart support team to decide.
+- Never reveal another customer&#39;s information or account details.</code></pre>
+<p>Select <strong>Save</strong>.</p>
+<p>The role and the instructions are the agent's job description — the
+one place you shape behaviour of the AI Agent without writing code. In
+this use case, <strong>SCOPE</strong> keeps it on-topic, <strong>USING
+YOUR TOOLS</strong> tells it when to reach for each tool, and
+<strong>WHEN YOU CAN'T HELP</strong> and <strong>GUARDRAILS</strong> set
+the limits on what it can decide, invent, or reveal. To make it your
+own, swap VoltMart for your domain and rewrite those blocks to match
+your own risk boundaries, keeping instructions short, concrete, and
+imperative.</p>
+<hr />
+<h3 id="phase-2--teach-it-the-voltmart-playbook">Phase 2 — Teach it the
+VoltMart playbook</h3>
+<p>Right now the agent can chat and it knows <em>what</em> it's supposed
+to do, but it doesn't actually <em>know</em> anything about
+VoltMart.</p>
+<p>So in this phase we give it a source of truth: VoltMart's own policy
+documents. The agent will look up the answer in those docs before it
+replies, a pattern called <strong>RAG</strong> (retrieval-augmented
+generation). We'll do it in two moves: load the documents into a
+searchable knowledge base, then hand the agent a tool to search it
+whenever it needs.</p>
+<p>The full pattern we followed here is covered in <a
+href="https://wso2.com/integration-platform/docs/genai/develop/rag/rag-ingestion">RAG
+ingestion</a>.</p>
+<h4 id="step-21--add-the-policy-documents-into-the-integration">Step 2.1
+— Add the policy documents into the integration</h4>
+<p>Create a <code>knowledge_base/</code> folder in your project and add
+these five Markdown files. (Full content is in the companion project
+under <a
+href="voltmart-support/knowledge_base"><code>voltmart-support/knowledge_base</code></a>;
+summaries below.)</p>
+<ul>
+<li><code>shipping-and-delivery.md</code> — timeframes, costs,
+regions.</li>
+<li><code>returns-and-refunds.md</code> — 30-day window, condition
+requirements, refund process.</li>
+<li><code>warranty.md</code> — coverage periods,
+inclusions/exclusions.</li>
+<li><code>payments-and-billing.md</code> — accepted methods, billing
+FAQ.</li>
+<li><code>general-faq.md</code> — account questions, how to track an
+order.</li>
+</ul>
+<h4 id="step-22--create-the-ingestion-automation">Step 2.2 — Create the
+ingestion automation</h4>
+<p>Ingestion isn't tied to any single request — you run it once to
+populate the knowledge base, then again only on a schedule or whenever
+the documents change. So it belongs in an <a
+href="https://wso2.com/integration-platform/docs/get-started/build-automation"><strong>Automation</strong></a>
+artifact — an integration that runs on startup or a schedule rather than
+in response to a request.</p>
+<ol type="1">
+<li>Create the automation. Select <strong>+ Add Artifact</strong> →
+<strong>Automation</strong> → <strong>Create</strong>.</li>
+<li>Next, load the knowledge base documents into the automation
+pipeline. For this use case, we only read the Markdown files from the
+local file system, so the <code>TextDataLoader</code> is the best fit.
+(See the <a
+href="https://wso2.com/integration-platform/docs/genai/develop/components/data-loaders">data
+loaders documentation</a> for more details.) On the flow line, click
+<strong>+</strong> → under <strong>AI → RAG</strong>, select
+<strong>Data Loader</strong> → <strong>Text Data Loader</strong>.
+<ul>
+<li><strong>Paths:</strong> add the five files under
+<code>knowledge_base/</code>.</li>
+<li><strong>Name:</strong> <code>loader</code>.</li>
+</ul></li>
+<li>Click the loader node, select the <strong>load</strong> action, and
+set the result variable to <code>documents</code>.</li>
+</ol>
+<p>[SCREENSHOT: The Text Data Loader configuration with the five
+Markdown paths.]</p>
+<h4 id="step-23--create-the-vector-knowledge-base">Step 2.3 — Create the
+vector knowledge base</h4>
+<p>Loading the documents isn't enough — the agent needs to <em>find</em>
+the right passage for each question. To make the policy documents
+searchable by meaning rather than keywords, we store them in a <a
+href="https://wso2.com/integration-platform/docs/genai/develop/components/knowledge-bases"><strong>knowledge
+base</strong></a> backed by a vector database. During ingestion each
+document is split into chunks, converted into embeddings (numeric
+vectors that capture meaning), and saved in a vector store. At query
+time the agent embeds the user's question the same way and retrieves the
+closest-matching chunks to ground its answer.</p>
+<p>Lucky for us, WSO2 Integrator has complete built-in support for all
+of the above steps in just a few clicks.</p>
+<p>A Vector knowledge base is composed of three parts you choose
+here:</p>
+<ul>
+<li><strong>Vector store</strong> — where the embeddings live. In this
+tutorial we will use the <a
+href="https://wso2.com/integration-platform/docs/genai/develop/components/vector-stores"><strong>InMemory
+Vector Store</strong></a>, which keeps everything in memory: zero setup
+and ideal for a small, read-mostly policy set like this. For larger or
+persistent workloads you can swap in <a
+href="https://wso2.com/integration-platform/docs/genai/develop/components/vector-stores">Pinecone,
+pgvector, and others</a> without changing the rest of the flow.</li>
+<li><strong>Embedding provider</strong> — what turns text into vectors.
+In this tutorial we will use the <a
+href="https://wso2.com/integration-platform/docs/genai/develop/components/embedding-providers"><strong>Default
+Embedding Provider (WSO2)</strong></a> so there's nothing to configure
+and no separate API key. You can switch to <a
+href="https://wso2.com/integration-platform/docs/genai/develop/components/embedding-providers">OpenAI
+or Azure OpenAI</a> if you'd rather use your own embedding model in
+production.</li>
+<li><strong>Chunker</strong> — how documents are split before embedding.
+In this tutorial we will leave it at <a
+href="https://wso2.com/integration-platform/docs/genai/develop/components/chunkers"><strong>AUTO</strong></a>,
+which sizes chunks dynamically based on each document's structure. You
+can pick and tune a specific chunker when you need finer control.</li>
+</ul>
+<p>These defaults keep the setup self-contained; for other knowledge
+base types (such as an Azure AI Search knowledge base) and the full list
+of options, see the <a
+href="https://wso2.com/integration-platform/docs/genai/develop/components/knowledge-bases">knowledge
+bases documentation</a>.</p>
+<p>So lets get our vector knowledge base created:</p>
+<ol type="1">
+<li>Click <strong>+</strong> → <strong>AI → RAG → Knowledge
+Base</strong> → <strong>Vector Knowledge Base</strong>.</li>
+<li><strong>Vector Store:</strong> click <strong>+ Create New Vector
+Store</strong> → choose <strong>InMemory Vector Store</strong> →
+<strong>Save</strong>.</li>
+<li><strong>Embedding Model:</strong> click <strong>+ Create New
+Embedding Model</strong> → choose <strong>Default Embedding Provider
+(WSO2)</strong> → <strong>Save</strong>.</li>
+<li><strong>Chunker:</strong> leave it at the default
+<strong>AUTO</strong>.</li>
+<li><strong>Vector Knowledge Base Name:</strong>
+<code>policyKnowledgeBase</code>.</li>
+<li><strong>Save</strong>.</li>
+</ol>
+<p>[SCREENSHOT: The Vector Knowledge Base config — InMemory store,
+Default WSO2 embedding, AUTO chunker.]</p>
+<h4 id="step-24--ingest-the-documents">Step 2.4 — Ingest the
+documents</h4>
+<p>Now all the pieces are in place: the documents are loaded, and the
+knowledge base is ready to receive them. The last step is to call the
+knowledge base's <strong>ingest</strong> action, which automatically
+splits the documents into chunks, embeds them, and stores them in the
+vector store.</p>
+<ol type="1">
+<li>Click <strong>+</strong> → select the
+<code>policyKnowledgeBase</code> variable → choose the
+<strong>ingest</strong> action.</li>
+<li>Set <strong>Documents</strong> to <code>documents</code> (from Step
+2.2).</li>
+<li>Add a <strong>Log Info</strong> node with the message
+<code>VoltMart policy knowledge base ingested and ready.</code></li>
+</ol>
+<h4 id="step-25--add-ai-agent-tool-to-search-the-knowledge-base">Step
+2.5 — Add AI Agent tool to search the knowledge base</h4>
+<p>After Step 2.4 the knowledge base is <strong>ingested and
+ready</strong> — VoltMart's policies are chunked, embedded, and sitting
+in the vector store waiting to be searched. And back in Phase 1 we
+already told the agent, in its system prompt, to call
+<code>searchVoltMartPolicies</code> <em>first</em> for any policy
+question. But that tool doesn't exist yet — right now the instruction
+points at nothing. That's the gap we close here. An agent can only reach
+the outside world through <strong>tools</strong>, so we give it a <a
+href="https://wso2.com/integration-platform/docs/genai/develop/agents/tools"><strong>custom
+tool</strong></a> that wraps the knowledge base's <strong>query
+side</strong> of RAG. When a customer asks a policy question, the agent
+calls this tool, which searches the knowledge base and hands the
+matching passages back as text the agent can answer from.</p>
+<p><strong>Add the tool.</strong> Go back to the <strong>AI Chat
+Agent</strong>. On the <strong>AI Agent</strong> node click
+<strong>+</strong> → <strong>Create Custom Tool</strong>, then fill in
+the form:</p>
+<ol type="1">
+<li><strong>Name:</strong> <code>searchVoltMartPolicies</code>. The
+agent runtime dynamically chooses a tool from its <strong>name +
+description</strong>, so this must match the name used in the system
+prompt exactly — otherwise the instruction in Phase 1 has nothing to
+call.</li>
+<li><strong>Description:</strong> the single most important field — it's
+what the AI Agent reads to decide <em>when</em> to reach for this tool.
+Spell out what it searches and the rule for using it (full text in the
+code below).</li>
+<li><strong>Parameter:</strong> click <strong>+ Add Parameter</strong>
+and add <code>string</code> types parameter named <code>query</code>
+with the description <em>"The customer's question, in their own
+words."</em> This is what gets searched against the knowledge base.</li>
+<li><strong>Return Type:</strong> <code>string</code> — the matching
+policy text we feed back to the agent. You can use a supported type in
+WSO2 integrator in this field, but for this use case, a simple string is
+enough.</li>
+<li>Click <strong>Create</strong>. WSO2 Integrator now opens an
+<strong>empty flow diagram</strong> for the tool implementation — this
+is the body of <code>searchVoltMartPolicies</code>, and it's where we
+wire up the <strong>knowledgebase retrieval side</strong> of RAG.</li>
+</ol>
+<p>So the flow is short:</p>
+<ol type="1">
+<li><p><strong>Retrieve the matching chunks.</strong> On the flow line,
+click <strong>+</strong> → <strong>AI → RAG → Knowledge Base</strong> →
+<strong>Retrieve</strong>. This action embeds the incoming question and
+pulls the closest-matching chunks from the vector store.</p>
+<ul>
+<li><strong>Knowledge Base:</strong> select
+<code>policyKnowledgeBase</code> (the same one you ingested into in Step
+2.4 — retrieval and ingestion must point at the same knowledge
+base).</li>
+<li><strong>Query:</strong> bind it to the tool's <code>query</code>
+parameter.</li>
+<li><strong>Top K:</strong> <code>10</code> — return the ten most
+relevant chunks. Enough to cover a policy answer without flooding the
+agent with noise. You can add more or fewer depending on how long your
+policies are and how much detail you want to return.</li>
+<li><strong>Result variable:</strong> <code>matches</code>. The action
+returns an <code>ai:QueryMatch[]</code> — each entry is a matched
+<code>chunk</code> plus its similarity <code>score</code>.</li>
+</ul></li>
+<li><p><strong>Stitch the chunks into one string and return it.</strong>
+<code>matches</code> is an <code>ai:QueryMatch[]</code>, but the tool's
+return type is a single <code>string</code> — so we flatten the matched
+chunks into one block of text.</p>
+<p><strong>⚡ With WSO2 Integrator Copilot (fastest path).</strong>
+Click <strong>Generate with AI</strong> in the tool flow and describe
+what you want — for example: <em>"Iterate over the <code>matches</code>
+(<code>ai:QueryMatch[]</code>) from the Retrieve node, concatenate each
+<code>match.chunk.content</code> into a single string separated by blank
+lines, return a fallback message if there are no matches, and return the
+combined string."</em> Review the generated flow and click
+<strong>Keep</strong>.</p>
+<p><strong>Prefer to place the nodes by hand?</strong> Build it node by
+node on the flow line, below the <strong>Retrieve</strong> node:</p>
+<ul>
+<li><strong>Declare the output variable.</strong> Click
+<strong>+</strong> → <strong>Variable</strong>. Set
+<strong>Name</strong> to <code>grounding</code>, <strong>Type</strong>
+to <code>string</code>, and <strong>Value</strong> to <code>""</code>.
+This accumulates the matched policy text.</li>
+<li><strong>Guard the empty case.</strong> Click <strong>+</strong> →
+<strong>If</strong>, with the condition
+<code>matches.length() == 0</code>. In the <strong>then</strong> branch,
+click <strong>+</strong> → <strong>Return</strong> and return a clear
+fallback such as
+<code>"NO_POLICY_FOUND: No matching VoltMart policy found."</code> —
+that way the agent gets the explicit <code>NO_POLICY_FOUND</code> signal
+its system prompt looks for instead of an empty string, and won't invent
+an answer.</li>
+<li><strong>Loop over the matches.</strong> On the main (else) line,
+click <strong>+</strong> → <strong>Foreach</strong>. Set the collection
+to <code>matches</code> and the iteration variable to
+<code>match</code>.</li>
+<li><strong>Append each chunk.</strong> Inside the loop, click
+<strong>+</strong> → <strong>Variable</strong> and update
+<code>grounding</code> to
+<code>grounding + match.chunk.content + "\n\n"</code>. Each matched
+chunk's text is concatenated onto the running string, separated by a
+blank line so the passages stay readable.</li>
+<li><strong>Return the grounding.</strong> After the loop, click
+<strong>+</strong> → <strong>Return</strong> and return
+<code>grounding</code>. That text is the grounding the agent answers
+from.</li>
+</ul></li>
+</ol>
+<p>[SCREENSHOT: Chat answering the returns-window question; trace
+showing the searchVoltMartPolicies call.]</p>
+<p>More on the query side of RAG: <a
+href="https://wso2.com/integration-platform/docs/genai/develop/rag/rag-query">RAG
+query</a>. More on tools: <a
+href="https://wso2.com/integration-platform/docs/genai/develop/agents/tools">Tools</a>.</p>
+<blockquote>
+<p><strong>Where do live order lookups go?</strong> You might have
+noticed the system prompt deliberately tells the agent it
+<em>cannot</em> look up a specific order's live status yet — for now it
+falls back to the self-service tracking steps in the policy docs. That's
+intentional: looking up real order data belongs to a real backend, not
+the knowledge base. We give the agent exactly that capability in
+<strong><strong>part 2 of this series</strong></strong>, where it talks
+to a live orders service over <strong>MCP</strong>.</p>
+</blockquote>
+<hr />
+<h3 id="phase-3--make-it-remember-the-conversation">Phase 3 — Make it
+remember the conversation</h3>
+<p>There's nothing more frustrating than a chatbot that forgets what you
+just told it — you give it your name or the email on your account, and a
+sentence later it asks for it again. The good news is that you don't
+have to build anything to avoid this. The initial AI Agent that created
+from the WSO2 Integrator Step 1.2 ships with <strong>built-in short-term
+memory</strong> out of the box, so it already remembers everything in
+the conversation — including the customer's name, order number, and any
+other details they shared — without you having to do any extra work.
+This built-in memory lives in process, which is exactly what you want
+during development and for conversations that don't need to outlive a
+restart. If you need memory that <strong>persists</strong> — surviving
+restarts, or shared across instances by backing it with an external
+store such as MSSQL — follow the <a
+href="https://wso2.com/integration-platform/docs/genai/develop/agents/memory">Memory
+guide</a> to configure a persistent short-term memory store in WSO2
+Integrator.</p>
+<hr />
+<h3 id="phase-4--take-it-for-a-spin">Phase 4 — Take it for a spin</h3>
+<p>This is the fun part — everything's wired up, so let's actually talk
+to it. Below are two conversations that each exercise a different
+capability you built: answering from the docs, and gracefully declining
+when a request is beyond what it should handle. Run through them and
+watch the agent decide, on its own, when to answer and when to step
+back.</p>
+<p>Run the project using the <code>Run</code> button in the top right
+and open the <strong>Chat</strong> panel (or use <code>curl</code>
+against <code>http://localhost:9090/voltMartAssistant/chat</code> with a
+JSON body of <code>{"sessionId": "...", "message": "..."}</code>). Use
+the <strong>same <code>sessionId</code></strong> within a conversation,
+a <strong>new one</strong> between conversations.</p>
+<h4 id="sample-1-test--knowledge-answer-rag">Sample 1 Test — Knowledge
+answer (RAG)</h4>
+<p>Ask a policy question and the agent answers straight from the
+docs.</p>
+<p><strong>Input:</strong></p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-X</span> POST http://localhost:9090/voltMartAssistant/chat <span class="dt">\</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Content-Type: application/json&quot;</span> <span class="dt">\</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">-d</span> <span class="st">&#39;{</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;sessionId&quot;: &quot;sample-1&quot;,</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;message&quot;: &quot;How long do I have to return something?&quot;</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="st">  }&#39;</span></span></code></pre></div>
+<p><strong>Output:</strong></p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="st">&quot;You have 30 days from the delivery date to return most items, as long as they&#39;re in their original packaging with all accessories. Want me to walk you through starting a return?&quot;</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><em>Expected behavior:</em> calls
+<code>searchVoltMartPolicies</code>, answers from the returns policy,
+stays brief.</p>
+<h4 id="sample-2-test--policy-exception-graceful-decline">Sample 2 Test
+— Policy exception (graceful decline)</h4>
+<p>Ask for something the agent isn't allowed to grant — a refund or an
+exception to policy — and it declines without overpromising, pointing
+you to the support team. Reuse the <strong>same
+<code>sessionId</code></strong> so it stays in the same conversation
+when you push back on the second turn.</p>
+<p><strong>Input (turn 1 — request an exception):</strong></p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-X</span> POST http://localhost:9090/voltMartAssistant/chat <span class="dt">\</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Content-Type: application/json&quot;</span> <span class="dt">\</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">-d</span> <span class="st">&#39;{</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;sessionId&quot;: &quot;sample-2&quot;,</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;message&quot;: &quot;I returned my speaker 40 days after delivery. Can you refund me anyway?&quot;</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="st">  }&#39;</span></span></code></pre></div>
+<p><strong>Output (turn 1 — declines, points to support):</strong></p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="st">&quot;I&#39;m sorry, but returns fall outside our 30-day window and I&#39;m not able to approve an exception myself. Our VoltMart support team can review your case — they&#39;re available 8:00 AM – 8:00 PM ET, seven days a week.&quot;</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>Input (turn 2 — customer pushes back):</strong></p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-X</span> POST http://localhost:9090/voltMartAssistant/chat <span class="dt">\</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Content-Type: application/json&quot;</span> <span class="dt">\</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">-d</span> <span class="st">&#39;{</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;sessionId&quot;: &quot;sample-2&quot;,</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;message&quot;: &quot;Come on, it was only 10 days late. Just approve it.&quot;</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="st">  }&#39;</span></span></code></pre></div>
+<p><strong>Output (turn 2 — stays firm, no promises):</strong></p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="st">&quot;I understand the frustration, and I&#39;m sorry for the trouble. Refund exceptions are decided by the VoltMart support team, not something I can authorize — please reach out to them at 8:00 AM – 8:00 PM ET and they&#39;ll take a look.&quot;</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><em>Expected behavior:</em> calls
+<code>searchVoltMartPolicies</code>, recognizes the request is an
+exception it can't authorize, declines politely, and directs the
+customer to support — without promising a refund.</p>
+<p>[SCREENSHOT: The Chat panel running conversation 2, showing the
+graceful decline.]</p>
+<hr />
+<h2 id="whats-next-in-the-series">What's next in the series</h2>
+<p>You now have a working front-line agent that answers policy questions
+from a knowledge base and knows when to step back. That's a complete,
+useful assistant on its own — but it can't yet see a single byte of
+<em>live</em> data. That's exactly what the next two parts add, building
+directly on the project you just created:</p>
+<ul>
+<li><strong>Part 2 — Give it live order data over MCP.</strong> Right
+now the agent can't look up a real order. In part 2 we stand up a proper
+<strong>orders backend</strong>: a Ballerina <strong>MCP
+service</strong> with <code>getStatus</code>, <code>createOrder</code>,
+and <code>removeOrder</code> tools, backed by a <strong>live PostgreSQL
+database running in Docker</strong>. Then we connect that MCP service to
+this same agent as a <strong>toolkit</strong> — so the agent gains every
+one of those tools at once, with no extra glue code. See <a
+href="https://wso2.com/integration-platform/docs/genai/tutorials/building-a-customer-care-agent-mcp">Building
+a customer care agent with MCP</a>.</li>
+<li><strong>Part 3 — Push live notifications over a webhook.</strong> In
+part 3 we add an order <strong>status-change</strong> tool that fires a
+<strong>webhook</strong> the moment an order moves from
+<em>processing</em> → <em>shipped</em> → <em>delivered</em>, so
+customers get a live notification instead of having to ask. Then we hand
+that tool to the agent too.</li>
+</ul>
+<p>And a few directions beyond the series, when you take this to
+production:</p>
+<ul>
+<li><strong>Human handoff / real refunds.</strong> This build politely
+points customers to support and never lets the agent move money. A real
+build would add a <a
+href="https://wso2.com/integration-platform/docs/genai/develop/agents/tools">connector-based
+tool</a> to open tickets in a helpdesk for the support team to
+action.</li>
+<li><strong>A durable / external vector store.</strong> The in-memory
+store resets on restart. For production, use Pinecone, pgvector,
+Weaviate, or Milvus (configure the index for 1536-dim vectors) and you
+can split ingestion and serving into separate processes.</li>
+<li><strong>Persistent memory.</strong> Swap the in-memory store for the
+MSSQL short-term memory store so conversations survive restarts — see <a
+href="https://wso2.com/integration-platform/docs/genai/develop/agents/memory">Memory</a>
+and the <a
+href="https://wso2.com/integration-platform/docs/genai/tutorials/it-helpdesk-chatbot">IT
+helpdesk tutorial</a>.</li>
+<li><strong>Evaluation &amp; observability.</strong> Turn on
+<strong>Tracing</strong> (OpenTelemetry) to inspect tool calls, and add
+an evaluation harness before you ship prompt changes.</li>
+</ul>
+<hr />
+</body>
+</html>
