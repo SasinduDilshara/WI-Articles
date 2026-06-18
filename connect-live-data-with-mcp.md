@@ -421,7 +421,7 @@ Step back and look at what you built. The orders service knows nothing about AI 
 
 ## What's next in the series
 
-The agent can now read and write live order data. But it's still **reactive** — the customer has to ask. In **[part 3](push-live-notifications-with-webhooks.md)** we close that loop: we add an order **status-change** capability that fires a **webhook** the moment an order moves from *processing* → *shipped* → *delivered*, so customers get a live notification pushed to them instead of having to check. As before, we'll build the capability as its own tool and then hand it to the same agent.
+The agent can now read and write live order data, but when a customer wants to *return* something it still hits a wall — it can only point them at support. In **[part 3](push-live-notifications-with-webhooks.md)** we close that gap: we add a `requestReturn` capability that lets the agent file a return on the customer's behalf and fires a **webhook** the moment it does, pushing a live alert to the VoltMart returns team. Crucially, the agent files the request but never decides the outcome — which is what makes it a safe write to put in front of customers. As before, we'll build the capability as its own tool and then hand it to the same agent.
 
 A few directions to explore on your own first:
 

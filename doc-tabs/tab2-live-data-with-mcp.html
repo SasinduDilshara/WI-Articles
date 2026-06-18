@@ -701,15 +701,16 @@ buys you: either side can change independently, and the same orders
 service could back a second agent, a mobile app, or Claude Desktop
 without a single change.</p>
 <h2 id="whats-next-in-the-series">What's next in the series</h2>
-<p>The agent can now read and write live order data. But it's still
-<strong>reactive</strong> — the customer has to ask. In
-<strong><strong>part 3</strong></strong> we close that loop: we add an
-order <strong>status-change</strong> capability that fires a
-<strong>webhook</strong> the moment an order moves from
-<em>processing</em> → <em>shipped</em> → <em>delivered</em>, so
-customers get a live notification pushed to them instead of having to
-check. As before, we'll build the capability as its own tool and then
-hand it to the same agent.</p>
+<p>The agent can now read and write live order data, but when a customer
+wants to <em>return</em> something it still hits a wall — it can only
+point them at support. In <strong><strong>part 3</strong></strong> we
+close that gap: we add a <code>requestReturn</code> capability that lets
+the agent file a return on the customer's behalf and fires a
+<strong>webhook</strong> the moment it does, pushing a live alert to the
+VoltMart returns team. Crucially, the agent files the request but never
+decides the outcome — which is what makes it a safe write to put in
+front of customers. As before, we'll build the capability as its own
+tool and then hand it to the same agent.</p>
 <p>A few directions to explore on your own first:</p>
 <ul>
 <li><strong>Add a fourth tool.</strong> Click <strong>+ Add

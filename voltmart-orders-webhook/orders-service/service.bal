@@ -6,7 +6,7 @@ import ballerina/sql;
 // MCP — the WSO2 agent we build later, Claude Desktop, or any other MCP client — can connect.
 listener mcp:Listener ordersMcpListener = check new (8290);
 
-// One MCP service exposes three tools to any connected client. WSO2 Integrator turns each
+// One MCP service exposes the order tools to any connected client. WSO2 Integrator turns each
 // `remote function` into a named, typed MCP tool automatically: the function name becomes the
 // tool name, the doc comment becomes the description the client's LLM reads to decide when to
 // call it, and the parameters become the tool's input schema. `sessionMode: AUTO` lets the
@@ -93,62 +93,63 @@ service mcp:Service /mcp on ordersMcpListener {
         return string `Order #${number} has been removed.`;
     }
 
-    # Update the status of a VoltMart order and send the customer a live notification. Call this
-    # when an order moves forward in fulfillment, e.g. from "processing" to "shipped" or from
-    # "shipped" to "delivered". The new status MUST be one of: processing, shipped, delivered.
-    # On success the customer is notified automatically via webhook. Returns ORDER_NOT_FOUND if
-    # no order matches the number, or INVALID_STATUS if the status is not one of the allowed values.
+    # Start a return request for a delivered VoltMart order and alert the returns team. You MUST
+    # pass BOTH the order number AND the account email; a return is filed only when the email
+    # matches the order on file. Call this when a customer wants to return or send back an item
+    # they have received. This does NOT approve a refund or change the order — it files the request
+    # and notifies the VoltMart returns team, who decide the outcome. Returns ORDER_NOT_FOUND if no
+    # order matches, VERIFICATION_FAILED if the email does not match, NOT_ELIGIBLE if the order has
+    # not been delivered yet, or RETURN_WINDOW_CLOSED if it was delivered more than 30 days ago.
     #
-    # + orderNumber - The order number whose status is changing
-    # + newStatus - The new status: "processing", "shipped", or "delivered"
-    # + return - A confirmation line, or an ORDER_NOT_FOUND / INVALID_STATUS signal
-    remote isolated function updateStatus(string orderNumber, string newStatus) returns string|error {
+    # + orderNumber - The order number being returned, e.g. "10219" (a leading '#' is fine)
+    # + accountEmail - The email on the customer's VoltMart account, used to verify identity
+    # + reason - The customer's reason for the return, in their own words
+    # + return - A confirmation line with a return reference, or an ORDER_NOT_FOUND / VERIFICATION_FAILED / NOT_ELIGIBLE / RETURN_WINDOW_CLOSED signal
+    remote isolated function requestReturn(string orderNumber, string accountEmail, string reason)
+            returns string|error {
         string number = normalize(orderNumber);
-        string status = newStatus.trim().toLowerAscii();
-        if status != "processing" && status != "shipped" && status != "delivered" {
-            return "INVALID_STATUS: Status must be one of processing, shipped, or delivered.";
-        }
-        Order|sql:Error existing = fetchOrder(number);
-        if existing is sql:NoRowsError {
+        ReturnCandidate|sql:Error candidate = fetchReturnCandidate(number);
+        if candidate is sql:NoRowsError {
             return "ORDER_NOT_FOUND: No VoltMart order matches that number.";
         }
-        if existing is sql:Error {
-            return error("Could not reach the VoltMart order database.", existing);
+        if candidate is sql:Error {
+            return error("Could not reach the VoltMart order database.", candidate);
+        }
+        if candidate.accountEmail.toLowerAscii() != accountEmail.trim().toLowerAscii() {
+            return "VERIFICATION_FAILED: That email does not match this order. No return was filed.";
+        }
+        if candidate.status != "delivered" {
+            return "NOT_ELIGIBLE: This order hasn't been delivered yet, so it can't be returned.";
+        }
+        int? daysSinceDelivery = candidate.daysSinceDelivery;
+        if daysSinceDelivery is () || daysSinceDelivery > 30 {
+            return "RETURN_WINDOW_CLOSED: This order was delivered more than 30 days ago, "
+                + "past the 30-day return window. The returns team can still review exceptions.";
         }
 
-        // A friendly ETA line that matches the new status.
-        string eta = etaFor(status);
-        check updateOrderStatus(number, status, eta);
-
-        // Push the live notification. Delivery is best-effort and never blocks the update.
-        notifyStatusChange({
-            event: "order.status.changed",
+        // Record the request first — the `returns` table is the durable source of truth.
+        int id = check insertReturn({
             orderNumber: number,
-            accountEmail: existing.accountEmail,
-            item: existing.item,
-            previousStatus: existing.status,
-            newStatus: status,
-            eta: eta
+            accountEmail: candidate.accountEmail,
+            item: candidate.item,
+            reason: reason.trim()
+        });
+        string reference = string `RMA-${id}`;
+
+        // Then alert the returns team. Best-effort: a delivery failure never unfiles the request.
+        notifyReturnRequested({
+            event: "return.requested",
+            reference,
+            orderNumber: number,
+            accountEmail: candidate.accountEmail,
+            item: candidate.item,
+            reason: reason.trim()
         });
 
-        log:printInfo("Updated order status", orderNumber = number,
-                previousStatus = existing.status, newStatus = status);
-        return string `Order #${number} (${existing.item}) is now "${status}". The customer has been notified — ${eta}.`;
-    }
-}
-
-// A human-readable ETA line for each status, so the notification reads naturally.
-isolated function etaFor(string status) returns string {
-    match status {
-        "shipped" => {
-            return "on its way, arriving in 2-3 business days";
-        }
-        "delivered" => {
-            return "delivered today";
-        }
-        _ => {
-            return "ships within 1 business day";
-        }
+        log:printInfo("Return requested", reference = reference, orderNumber = number);
+        return string `Return request ${reference} filed for order #${number} (${candidate.item}). `
+            + "Our returns team has been notified and will email you next steps within one business day. "
+            + "No refund has been approved yet — the team reviews every request.";
     }
 }
 

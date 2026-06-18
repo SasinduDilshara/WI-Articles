@@ -157,9 +157,9 @@ the foundation: an agent that answers policy questions from a knowledge
 base and knows when to step back. In <strong><strong>part
 2</strong></strong> we connect it to a live orders backend over
 <strong>MCP</strong> (Model Context Protocol) so it can look up real
-order data, and in <strong><strong>part 3</strong></strong> we add
-<strong>live order-status notifications</strong> over a webhook. Each
-part builds directly on the previous one.</p>
+order data, and in <strong><strong>part 3</strong></strong> we let it
+<strong>file returns and push a live notification</strong> to the team
+over a webhook. Each part builds directly on the previous one.</p>
 </blockquote>
 <h3 id="architecture">Architecture</h3>
 <blockquote>
@@ -751,12 +751,12 @@ this same agent as a <strong>toolkit</strong> — so the agent gains every
 one of those tools at once, with no extra glue code. See <a
 href="https://wso2.com/integration-platform/docs/genai/tutorials/building-a-customer-care-agent-mcp">Building
 a customer care agent with MCP</a>.</li>
-<li><strong>Part 3 — Push live notifications over a webhook.</strong> In
-part 3 we add an order <strong>status-change</strong> tool that fires a
-<strong>webhook</strong> the moment an order moves from
-<em>processing</em> → <em>shipped</em> → <em>delivered</em>, so
-customers get a live notification instead of having to ask. Then we hand
-that tool to the agent too.</li>
+<li><strong>Part 3 — Act on a request, then push a live notification
+over a webhook.</strong> In part 3 we add a <code>requestReturn</code>
+tool that lets the agent file a return on the customer's behalf and
+fires a <strong>webhook</strong> the moment it does, pushing a live
+alert to the returns team — while never deciding the refund itself. Then
+we hand that tool to the agent too.</li>
 </ul>
 <p>And a few directions beyond the series, when you take this to
 production:</p>

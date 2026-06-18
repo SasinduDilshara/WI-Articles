@@ -1,39 +1,38 @@
 import ballerina/http;
 import ballerina/log;
 
-// ----- Webhook publisher: live order-status notifications (Part 3) -----
+// ----- Webhook publisher: live return-request alerts (Part 3) -----
 //
-// When an order changes status, the orders service POSTs a notification to a subscriber
-// (the notifications receiver, or any real channel — email/SMS gateway, customer app).
-// This is the "push" half of the system: the customer is told the moment something changes,
-// instead of having to ask. The target URL is configuration, so subscribers can change
-// without touching code.
-configurable string webhookUrl = "http://localhost:9091/notifications/order-status";
+// When a customer files a return through the agent, the orders service POSTs an alert to a
+// subscriber — here, the VoltMart returns team's inbox (a stand-in for a real ticketing system,
+// a Slack channel, or an ops dashboard). This is the "push" half of the system: the team is told
+// the instant a request comes in, instead of polling a queue. The target URL is configuration,
+// so subscribers can change without touching code.
+configurable string webhookUrl = "http://localhost:9091/notifications/return-requested";
 
 // A separate HTTP client just for delivering webhooks.
 final http:Client webhookClient = check new (webhookUrl);
 
-// The notification payload. The receiver decodes exactly this shape.
-public type StatusChangedEvent record {|
+// The alert payload. The receiver decodes exactly this shape.
+public type ReturnRequestedEvent record {|
     string event;
+    string reference;
     string orderNumber;
     string accountEmail;
     string item;
-    string previousStatus;
-    string newStatus;
-    string eta;
+    string reason;
 |};
 
-// Fire the notification. We never let a webhook failure break the status update itself —
-// the order has already changed in the database; delivery is best-effort, so we log and
-// move on rather than propagating the error back to the caller.
-isolated function notifyStatusChange(StatusChangedEvent event) {
+// Fire the alert. We never let a webhook failure break the filed request — the return is already
+// recorded in the database; delivery is best-effort, so we log and move on rather than propagating
+// the error back to the caller.
+isolated function notifyReturnRequested(ReturnRequestedEvent event) {
     http:Response|error response = webhookClient->post("", event);
     if response is error {
-        log:printWarn("Order-status webhook delivery failed",
-                orderNumber = event.orderNumber, 'error = response);
+        log:printWarn("Return-request webhook delivery failed",
+                reference = event.reference, 'error = response);
         return;
     }
-    log:printInfo("Order-status webhook delivered",
-            orderNumber = event.orderNumber, newStatus = event.newStatus);
+    log:printInfo("Return-request webhook delivered",
+            reference = event.reference, orderNumber = event.orderNumber);
 }

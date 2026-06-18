@@ -1,55 +1,44 @@
 import ballerina/http;
 import ballerina/log;
 
-// ----- Notifications receiver: the webhook subscriber (Part 3) -----
+// ----- Returns-team inbox: the webhook subscriber (Part 3) -----
 //
-// A stand-in for whatever channel actually reaches the customer — an email service, an SMS
-// gateway, a push-notification provider, or the customer's app. The orders service POSTs an
-// order-status event here the moment an order changes; in a real system this handler would
-// format and send the message. Here we log it and craft the customer-facing copy so you can
-// see the live notification arrive end to end.
+// A stand-in for whatever actually reaches the VoltMart returns team — a ticketing system, a
+// Slack channel, or an ops dashboard. The orders service POSTs a return-requested event here the
+// moment a customer files a return through the agent; in a real system this handler would open a
+// ticket and assign it. Here we log it as the alert the team would receive, so you can watch the
+// live notification arrive end to end.
 
-// Must match orders-service/webhook.bal `StatusChangedEvent`.
-type StatusChangedEvent record {|
+// Must match orders-service/webhook.bal `ReturnRequestedEvent`.
+type ReturnRequestedEvent record {|
     string event;
+    string reference;
     string orderNumber;
     string accountEmail;
     string item;
-    string previousStatus;
-    string newStatus;
-    string eta;
+    string reason;
 |};
 
 service /notifications on new http:Listener(9091) {
 
-    // The orders service delivers status-change webhooks here.
-    resource function post 'order\-status(@http:Payload StatusChangedEvent event)
+    // The orders service delivers return-request webhooks here.
+    resource function post 'return\-requested(@http:Payload ReturnRequestedEvent event)
             returns http:Accepted {
-        string message = composeMessage(event);
-        // In production: send `message` to the customer via email/SMS/push.
-        log:printInfo("Customer notification sent",
-                to = event.accountEmail,
+        string alert = composeAlert(event);
+        // In production: open a ticket / post to the team's channel and assign an owner.
+        log:printInfo("Returns team alerted",
+                reference = event.reference,
                 orderNumber = event.orderNumber,
-                body = message);
-        // 202 Accepted: we've taken responsibility for delivering the notification.
+                'from = event.accountEmail,
+                alert = alert);
+        // 202 Accepted: we've taken responsibility for handling the request.
         return http:ACCEPTED;
     }
 }
 
-// Turn a raw status-change event into the message a customer would actually receive.
-isolated function composeMessage(StatusChangedEvent event) returns string {
-    match event.newStatus {
-        "shipped" => {
-            return string `Good news! Your VoltMart order #${event.orderNumber} (${event.item}) `
-                + string `has shipped — ${event.eta}.`;
-        }
-        "delivered" => {
-            return string `Your VoltMart order #${event.orderNumber} (${event.item}) was `
-                + string `${event.eta}. Enjoy!`;
-        }
-        _ => {
-            return string `Update on your VoltMart order #${event.orderNumber} (${event.item}): `
-                + string `it's now ${event.newStatus}.`;
-        }
-    }
+// Turn a raw return-requested event into the alert the returns team would actually see.
+isolated function composeAlert(ReturnRequestedEvent event) returns string {
+    return string `New return request ${event.reference}: order #${event.orderNumber} `
+        + string `(${event.item}) from ${event.accountEmail} — reason: "${event.reason}". `
+        + "Please review and email the customer their next steps.";
 }

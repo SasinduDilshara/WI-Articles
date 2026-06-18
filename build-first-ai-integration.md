@@ -21,7 +21,7 @@ Like a lot of small stores, VoltMart has a tiny support team and an inbox floode
 
 You'll start from an empty machine and add one capability at a time, checking that each works before moving on. By the end you'll have a running assistant that acts as a front-line support agent.
 
-> **This is part 1 of a three-part series.** Here we build the foundation: an agent that answers policy questions from a knowledge base and knows when to step back. In **[part 2](connect-live-data-with-mcp.md)** we connect it to a live orders backend over **MCP** (Model Context Protocol) so it can look up real order data, and in **[part 3](push-live-notifications-with-webhooks.md)** we add **live order-status notifications** over a webhook. Each part builds directly on the previous one.
+> **This is part 1 of a three-part series.** Here we build the foundation: an agent that answers policy questions from a knowledge base and knows when to step back. In **[part 2](connect-live-data-with-mcp.md)** we connect it to a live orders backend over **MCP** (Model Context Protocol) so it can look up real order data, and in **[part 3](push-live-notifications-with-webhooks.md)** we let it **file returns and push a live notification** to the team over a webhook. Each part builds directly on the previous one.
 
 ### Architecture
 
@@ -406,10 +406,10 @@ project you just created:
   Then we connect that MCP service to this same agent as a **toolkit** — so the agent gains every one
   of those tools at once, with no extra glue code. See
   [Building a customer care agent with MCP](https://wso2.com/integration-platform/docs/genai/tutorials/building-a-customer-care-agent-mcp).
-- **Part 3 — Push live notifications over a webhook.** In part 3 we add an order **status-change**
-  tool that fires a **webhook** the moment an order moves from *processing* → *shipped* → *delivered*,
-  so customers get a live notification instead of having to ask. Then we hand that tool to the agent
-  too.
+- **Part 3 — Act on a request, then push a live notification over a webhook.** In part 3 we add a
+  `requestReturn` tool that lets the agent file a return on the customer's behalf and fires a
+  **webhook** the moment it does, pushing a live alert to the returns team — while never deciding the
+  refund itself. Then we hand that tool to the agent too.
 
 And a few directions beyond the series, when you take this to production:
 

@@ -42,10 +42,23 @@ isolated function deleteOrder(string orderNumber) returns sql:Error? {
     _ = check ordersDb->execute(`DELETE FROM orders WHERE order_number = ${orderNumber}`);
 }
 
-// Move an order to a new status (and refresh its ETA text). Used by the status-change
-// tool that drives live notifications in Part 3.
-isolated function updateOrderStatus(string orderNumber, string status, string eta) returns sql:Error? {
-    _ = check ordersDb->execute(`UPDATE orders
-                                    SET status = ${status}, eta = ${eta}
-                                  WHERE order_number = ${orderNumber}`);
+// Fetch just what the return path needs, including how many days ago the order was delivered.
+// `daysSinceDelivery` is NULL for orders that have not been delivered yet. Postgres returns the
+// difference of two dates as an integer number of days. Used by requestReturn in Part 3.
+isolated function fetchReturnCandidate(string orderNumber) returns ReturnCandidate|sql:Error {
+    return ordersDb->queryRow(`SELECT order_number  AS "orderNumber",
+                                      account_email AS "accountEmail",
+                                      item, status,
+                                      (CURRENT_DATE - delivered_date) AS "daysSinceDelivery"
+                                 FROM orders
+                                WHERE order_number = ${orderNumber}`);
+}
+
+// Record a filed return request and return the new row's id, so the tool can build a reference
+// number (RMA-<id>) for the customer and the webhook. The `returns` table — not the chat — is
+// the durable record of the request.
+isolated function insertReturn(ReturnRequest req) returns int|sql:Error {
+    return ordersDb->queryRow(`INSERT INTO returns (order_number, account_email, item, reason)
+                               VALUES (${req.orderNumber}, ${req.accountEmail}, ${req.item}, ${req.reason})
+                               RETURNING id`);
 }
