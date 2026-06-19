@@ -1,0 +1,28 @@
+VoltMart Support Assistant — Phase 4 functional test (via curl, agent run from CLI)
+Project: /Users/admin/wso2integrator/customer-support-assistant
+Endpoint: POST http://localhost:9090/voltMartAssistant/chat
+Date: 2026-06-18
+
+Startup log:
+  level=INFO message="VoltMart policy knowledge base ingested and ready."
+
+=== Sample 1 — Knowledge answer (RAG) ===
+Request:  {"sessionId":"sample-1","message":"How long do I have to return something?"}
+Response: {"message":"You have **30 days from the delivery date** to return most items for a
+          refund. Make sure the items meet the condition requirements for a successful return!"}
+Result:   PASS — agent called searchVoltMartPolicies and answered from the returns policy.
+
+=== Sample 2 — Policy exception (graceful decline) ===
+Turn 1
+Request:  {"sessionId":"sample-2","message":"I returned my speaker 40 days after delivery. Can you refund me anyway?"}
+Response: {"message":"Unfortunately, we can only process refunds for returns made within 30 days of
+          delivery. Since your return was initiated after 40 days, I can't authorize a refund. I
+          recommend contacting VoltMart's support team for further assistance with your situation."}
+Turn 2 (same sessionId — pushback)
+Request:  {"sessionId":"sample-2","message":"Come on, it was only 10 days late. Just approve it."}
+Response: {"message":"I understand your frustration, but I can't approve refunds or exceptions to
+          policy. Please reach out to VoltMart's support team, who will be able to review your case further."}
+Result:   PASS — declines politely, never promises a refund, directs to support, and retains
+          conversation context across turns (built-in short-term memory).
+
+Build verification: `bal build` => exit 0 (Compiling source -> Generating executable).
