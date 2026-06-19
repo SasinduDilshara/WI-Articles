@@ -21,7 +21,7 @@ Like a lot of small stores, VoltMart has a tiny support team and an inbox floode
 
 You'll start from an empty machine and add one capability at a time, checking that each works before moving on. By the end you'll have a running assistant that acts as a front-line support agent.
 
-> **This is part 1 of a three-part series.** Here we build the foundation: an agent that answers policy questions from a knowledge base and knows when to step back. In **[part 2](connect-live-data-with-mcp.md)** we connect it to a live orders backend over **MCP** (Model Context Protocol) so it can look up real order data, and in **[part 3](push-live-notifications-with-webhooks.md)** we let it **file returns and push a live notification** to the team over a webhook. Each part builds directly on the previous one.
+> **This is part 1 of a four-part series.** Here we build the foundation: an agent that answers policy questions from a knowledge base and knows when to step back. In **[part 2](connect-live-data-with-mcp.md)** we connect it to a live orders backend over **MCP** (Model Context Protocol) so it can look up real order data, in **[part 3](push-live-notifications-with-webhooks.md)** we let it **file returns and push a live notification** to the team over a webhook, and in **[part 4](deploy-and-observe-on-wso2-cloud.md)** we **deploy it to WSO2 Cloud and observe** every decision it makes in production. Each part builds directly on the previous one.
 
 ### Architecture
 
@@ -37,7 +37,7 @@ documents rather than guessing. And when a request is beyond what it should deci
 back, **declines politely, and points the customer to VoltMart's support team**. All the while it
 remembers what's been said, so the customer never has to repeat themselves.
 
-That foundation is exactly what this first article delivers end to end, and the next two parts then
+That foundation is exactly what this first article delivers end to end, and the parts that follow then
 extend this very same agent. You'll learn how to build each piece in the steps that follow.
 
 ---
@@ -450,7 +450,7 @@ curl -X POST http://localhost:9090/voltMartAssistant/chat \
 
 You now have a working front-line agent that answers policy questions from a knowledge base and
 knows when to step back. That's a complete, useful assistant on its own — but it can't yet see a
-single byte of *live* data. That's exactly what the next two parts add, building directly on the
+single byte of *live* data. That's exactly what the next three parts add, building directly on the
 project you just created:
 
 - **Part 2 — Give it live order data over MCP.** Right now the agent can't look up a real order. In
@@ -463,8 +463,13 @@ project you just created:
   `requestReturn` tool that lets the agent file a return on the customer's behalf and fires a
   **webhook** the moment it does, pushing a live alert to the returns team — while never deciding the
   refund itself. Then we hand that tool to the agent too.
+- **Part 4 — Deploy it to WSO2 Cloud and observe it.** In part 4 we take the finished agent (and the
+  orders service and returns receiver it depends on) to production on **WSO2 Cloud**, switch it to a
+  production model provider and a managed database, and **observe** every tool call and decision — with
+  the dev-time agent trace viewer and the cloud's runtime logs, metrics, alerts, and traces. See
+  [Deploy and observe your AI agent on WSO2 Cloud](deploy-and-observe-on-wso2-cloud.md).
 
-And a few directions beyond the series, when you take this to production:
+And a few directions beyond the series, when you take this even further in production:
 
 - **Human handoff / real refunds.** This build politely points customers to support and never
   lets the agent move money. A real build would add a [connector-based tool](https://wso2.com/integration-platform/docs/genai/develop/agents/tools)

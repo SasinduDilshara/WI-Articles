@@ -23,6 +23,9 @@ ARTICLES = [
     ("push-live-notifications-with-webhooks.md",
      "tab3-live-notifications-with-webhooks.html",
      "Part 3 — Push Live Notifications with Webhooks"),
+    ("deploy-and-observe-on-wso2-cloud.md",
+     "tab4-deploy-and-observe-on-cloud.html",
+     "Part 4 — Deploy and Observe Your AI Agent on WSO2 Cloud"),
 ]
 
 # Image embeds: ![alt](something.png) -> visible "insert image" placeholder.

@@ -6,7 +6,7 @@ Across this series your VoltMart Support Assistant has grown up fast. In [part 1
 
 But there's still a gap, and it's the one customers feel most. When someone says *"my speaker arrived damaged, I'd like to send it back,"* the best the agent can do today is recite the returns policy and point them at the support team — exactly where part 1 left off. The request lands nowhere. Nobody on the team hears about it until the customer chases it down a second time.
 
-That's what this final part closes. We'll give the agent the ability to **file a return on the customer's behalf** — and the moment it does, a **webhook** pushes a live alert to the VoltMart returns team, so a human is on it immediately. The customer gets an instant, honest confirmation; the team gets a real-time signal instead of polling a queue.
+That's what this part closes. We'll give the agent the ability to **file a return on the customer's behalf** — and the moment it does, a **webhook** pushes a live alert to the VoltMart returns team, so a human is on it immediately. The customer gets an instant, honest confirmation; the team gets a real-time signal instead of polling a queue.
 
 And notice what we are deliberately **not** doing. The agent never decides the outcome — it doesn't approve the refund, and it doesn't change the order. It *routes a customer's legitimate request* to the people who own that decision. That's what makes this capability safe to put in front of customers: a tool a customer can trigger should never be one that lets them do something they shouldn't. Filing a return is something a customer is entitled to do; advancing their own order's status, or approving their own refund, is not.
 
@@ -314,6 +314,6 @@ There's a bigger idea hiding in that last step, too. The agent didn't *do* the r
 - **Secure the webhook, and authorize the tools.** Sign each payload (HMAC) so the receiver can verify it really came from the orders service, and put auth in front of the MCP endpoint so privileged tools are reachable only by the right client. That's the proper backend boundary for anything more sensitive than filing a return — see the [tools documentation](https://wso2.com/integration-platform/docs/genai/develop/agents/tools).
 - **Close the loop back to the customer.** When the team approves the return, emit an event the other way — a webhook to a customer channel ("your return is approved, here's your prepaid label"). The same publisher/subscriber pattern, pointed the other direction.
 
-That's the series. You now have the full toolkit — knowledge, live data, and event-driven action — to build agents that don't just talk, but act *within their bounds* and reach the right people the moment something happens. Go build your own.
+That completes the agent itself — knowledge, live data, and event-driven action: a toolkit for building agents that don't just talk, but act *within their bounds* and reach the right people the moment something happens. There's one step left to make it real. In **[part 4](deploy-and-observe-on-wso2-cloud.md)** we **deploy it to WSO2 Cloud and observe** it in production — switching to a production model provider and a managed database, then watching every tool call and decision through the agent trace viewer and the cloud's runtime logs, metrics, alerts, and traces. See you there.
 
 ---

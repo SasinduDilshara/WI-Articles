@@ -13,6 +13,7 @@ https://docs.google.com/document/d/1pT8kZIVhS8HMZttNFmDu6xEi48tiUOSCakmlxfGv6CY/
 | 1 | `tab1-first-ai-agent.html` | Part 1 — Your First AI Agent on WSO2 Integrator |
 | 2 | `tab2-live-data-with-mcp.html` | Part 2 — Give Your AI Agent Live Data with MCP |
 | 3 | `tab3-live-notifications-with-webhooks.html` | Part 3 — Push Live Notifications with Webhooks |
+| 4 | `tab4-deploy-and-observe-on-cloud.html` | Part 4 — Deploy and Observe Your AI Agent on WSO2 Cloud |
 
 ## How to paste each tab (formatting preserved)
 
