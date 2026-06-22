@@ -307,13 +307,25 @@ And the architecture stayed clean the whole way: the knowledge base, the orders 
 
 There's a bigger idea hiding in that last step, too. The agent didn't *do* the return — it raised an **event** that a human (or another system) acts on. That's how agentic systems stay safe as they grow: events carry awareness of what changed, while the authority to decide stays with whoever should hold it. The agent files; the team rules.
 
-### Where to go next
+## What's next in the series
+
+That completes the agent itself — knowledge, live data, and event-driven action: a toolkit for
+building agents that don't just talk, but act *within their bounds* and reach the right people the
+moment something happens. The agent is feature-complete, but it's still running on your machine
+against the WSO2 default model provider and a throwaway Docker database. There's one step left to
+make it real:
+
+- **Part 4 — Deploy it to WSO2 Cloud and observe it.** In part 4 we take the finished agent (and the
+  orders service and returns receiver it depends on) to production on **WSO2 Cloud**, switch it to a
+  production model provider and a managed database, and **observe** every tool call and decision — with
+  the dev-time agent trace viewer and the cloud's runtime logs, metrics, alerts, and traces. See
+  [Deploy and observe your AI agent on WSO2 Cloud](deploy-and-observe-on-wso2-cloud.md).
+
+And a few directions to explore on your own, beyond the series:
 
 - **Multiple subscribers.** A `return.requested` event rarely matters to just one team. Keep a list of webhook URLs and fan each event out — the returns desk, an inventory system that earmarks the restock, and an analytics pipeline, all at once, without the publisher knowing who's listening.
 - **Reliable delivery.** Real webhooks need retries with backoff and a dead-letter queue for events that never get through. WSO2 Integrator's [reliable messaging patterns](https://wso2.com/integration-platform/docs/) fit naturally here.
 - **Secure the webhook, and authorize the tools.** Sign each payload (HMAC) so the receiver can verify it really came from the orders service, and put auth in front of the MCP endpoint so privileged tools are reachable only by the right client. That's the proper backend boundary for anything more sensitive than filing a return — see the [tools documentation](https://wso2.com/integration-platform/docs/genai/develop/agents/tools).
 - **Close the loop back to the customer.** When the team approves the return, emit an event the other way — a webhook to a customer channel ("your return is approved, here's your prepaid label"). The same publisher/subscriber pattern, pointed the other direction.
-
-That completes the agent itself — knowledge, live data, and event-driven action: a toolkit for building agents that don't just talk, but act *within their bounds* and reach the right people the moment something happens. There's one step left to make it real. In **[part 4](deploy-and-observe-on-wso2-cloud.md)** we **deploy it to WSO2 Cloud and observe** it in production — switching to a production model provider and a managed database, then watching every tool call and decision through the agent trace viewer and the cloud's runtime logs, metrics, alerts, and traces. See you there.
 
 ---

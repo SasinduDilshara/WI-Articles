@@ -56,13 +56,20 @@ Let's get your machine set up so the rest of the tutorial just flows.
 
 ### 2. Sign up for WSO2 Cloud
 
-Refer to [Sign up and sign in](https://wso2.com/integration-platform/docs/get-started/setup/sign-up-sign-in) to do so.
+**Phase 1 runs entirely on your local machine.** From **Phase 2** onward, though, the agent's knowledge base (RAG) is built on the **WSO2 Cloud RAG ingestion platform** — a managed vector database, a scheduled ingestion automation, and a retrieval API — so you'll need a WSO2 Cloud account before you reach that phase. Create one now: refer to [Sign up and sign in](https://wso2.com/integration-platform/docs/get-started/setup/sign-up-sign-in).
 
 ### 3. Get to know WSO2 Integrator Copilot, your AI assistant for building integrations
 
 1. Get started with WSO2 Integrator Copilot: [Getting started](https://wso2.com/integration-platform/docs/develop/copilot/getting-started).
 2. Learn what it can do: [Copilot capabilities](https://wso2.com/integration-platform/docs/develop/copilot/copilot-capabilities).
 3. You can use the WSO2 Integrator Copilot to speed up your development by generating code snippets, configurations, and even entire artifacts based on natural language prompts. It understands the context of your project and can assist you in building your AI integrations more efficiently.
+
+### 4. What Phase 2 (the knowledge base) also needs
+
+Phase 1 needs nothing beyond the above. Before you start **Phase 2**, line up these two as well — they're what the managed RAG pipeline uses to read and embed your documents. We call each one out again at the exact step that uses it, so there's no need to set them up until then:
+
+- **An OpenAI API key** — used to generate embeddings for the policy documents (and again at query time). Any key from your [OpenAI account](https://platform.openai.com/api-keys) works.
+- **A cloud document source** — a **Google Drive** folder (used in this tutorial) or an **Amazon S3** bucket, where the ingestion automation reads the policy files from. A Google account is enough for the Drive option.
 
 ---
 
@@ -78,7 +85,9 @@ AI agent, and — most importantly — tell it *who it is*.
 
 #### Step 1.1 — Create the integration project
 
-1. From the **Create New Integration** card, select **Create**.
+When WSO2 Integrator opens you land on the **welcome screen** (the Design view, with the getting-started cards). From there:
+
+1. On the welcome screen, find the **Create New Integration** card and select **Create**. (Already have a project open? Use **File → New Project** to reach the same dialog.)
 2. Set **Integration Name** to `VoltMartSupport`.
 3. Set **Project Name** to `voltmart-support`.
 4. Select **Create Integration**.
@@ -103,8 +112,11 @@ First of all let's create the skeleton of our AI Agent — the thing that will e
 
 > **What you just got.** Once this is created, WSO2 Integrator creates a fully functional AI agent skeleton for
 > you — out of the box it comes with a very naive system prompt, built-in AI agent memory, and an
-> LLM backed by the default WSO2 model provider capabilities (see more in Step 1.3). In the steps
-> that follow we'll dig deep into how to configure and change each of these components according to our use case.
+> LLM backed by the default WSO2 model provider capabilities (see more in Step 1.3). Creating the **AI Chat Agent**
+> also **automatically exposes it as an HTTP chat service** — the service path and port are generated for you, so
+> there's nothing to wire up and no URL to assemble. You'll talk to the agent through WSO2 Integrator's built-in
+> **Chat** panel (we do this first in the *Check it* step at the end of this phase). In the steps that follow we'll
+> dig deep into how to configure and change each of these components according to our use case.
 
  See [Creating an agent](https://wso2.com/integration-platform/docs/genai/develop/agents/creating-an-agent).
 
@@ -137,7 +149,8 @@ Once you've finished testing, change the model provider to a production-grade on
    add it to the agent.
 
 > **For this tutorial** we'll stay on the WSO2 default provider so you can build and test everything
-> without an external API key. See the **Next steps** section for the full provider-switching walkthrough.
+> without an external API key. [Part 4](deploy-and-observe-on-wso2-cloud.md#step-a1--switch-the-agent-to-azure-openai)
+> walks through switching to a production provider (Azure OpenAI) in full, as the final step before you deploy.
 
 #### Step 1.4 — Tell your agent how to behave
 
@@ -178,6 +191,21 @@ Select **Save**.
 
 The role and the instructions are the agent's job description — the one place you shape behaviour of the AI Agent without writing code. In this use case, **SCOPE** keeps it on-topic, **USING YOUR TOOLS** tells it when to reach for each tool, and **WHEN YOU CAN'T HELP** and **GUARDRAILS** set the limits on what it can decide, invent, or reveal. To make it your own, swap VoltMart for your domain and rewrite those blocks to match your own risk boundaries, keeping instructions short, concrete, and imperative.
 
+> **Heads-up: `searchVoltMartPolicies` doesn't exist yet.** The prompt you just pasted tells the agent to call a
+> `searchVoltMartPolicies` tool *first* for policy questions — but you don't build that tool until
+> [Step 2.5](#step-25--add-ai-agent-tool-to-search-the-knowledge-base). Until then the instruction simply has nothing
+> to call, which is expected. If you test now (next), the agent will chat and stay in character, but it can't ground
+> answers in VoltMart's policies yet.
+
+#### Check it — talk to your agent for the first time
+
+You don't need the knowledge base to confirm the skeleton works. Run the project with the **Run** button (top-right), then open the agent's built-in chat: click the **AI Chat Agent**, then the **Chat** button at the top-left of the canvas. Try one in-scope message (*"Do you sell laptops?"*) and one out-of-scope message (*"What's the capital of France?"*) — you should see it answer in the VoltMart persona and politely decline the off-topic question. Because there's no knowledge tool yet, don't expect grounded policy answers — that's Phase 2.
+
+> 💡 This built-in **Chat** panel is how you'll test throughout development — no curl, no copying a URL. For more on
+> exercising an agent during development, see
+> [Agent observability](https://wso2.com/integration-platform/docs/genai/develop/agents/observability) (skip the
+> tracing parts for now — we cover tracing in [part 4](deploy-and-observe-on-wso2-cloud.md)).
+
 ---
 
 ### Phase 2 — Teach it the VoltMart playbook
@@ -187,6 +215,11 @@ Right now the agent can chat and it knows *what* it's supposed to do, but it doe
 So in this phase we give it a source of truth: VoltMart's own policy documents. The agent looks up the answer in those docs before it replies, a pattern called **RAG** (retrieval-augmented generation). This time we don't build the pipeline by hand in the editor — we use the **WSO2 Cloud RAG ingestion platform** as a managed service. We'll do it in four moves: stand up a managed vector database, run a **scheduled ingestion automation** that loads the documents into it, expose **retrieval as an HTTP API** with a RAG service, and finally give the agent a tool that calls that API whenever it needs an answer.
 
 The full pattern we follow here is covered in the WSO2 Cloud RAG docs: [RAG ingestion](https://wso2.com/integration-platform/docs/manage/cloud/rag-ingestion/ingestion), [managed vector databases](https://wso2.com/integration-platform/docs/manage/cloud/rag-ingestion/vector-databases), [RAG retrieval](https://wso2.com/integration-platform/docs/manage/cloud/rag-ingestion/retrieval), and [the RAG service API](https://wso2.com/integration-platform/docs/manage/cloud/rag-ingestion/service).
+
+> **Before you start Phase 2, have these ready** (all from [Prerequisites](#prerequisites-getting-your-tools-ready)):
+> a **WSO2 Cloud account** (the RAG pipeline is a managed cloud service), an **OpenAI API key** (used to embed the
+> documents), and a **Google Drive** folder or **Amazon S3** bucket to hold the policy files. We point at each one at
+> the step that needs it.
 
 #### Step 2.1 — Put the policy documents where ingestion can read them
 
@@ -295,6 +328,13 @@ A successful response returns the query and the matching chunks:
 
 See [RAG retrieval](https://wso2.com/integration-platform/docs/manage/cloud/rag-ingestion/retrieval) and [the RAG service API](https://wso2.com/integration-platform/docs/manage/cloud/rag-ingestion/service).
 
+> **Collect these real values now — Step 2.5 wires them in.** Once your `POST /retrieve` call succeeds in the Test
+> console, you have every concrete value the agent's tool needs (these are what replace the `<...>` placeholders
+> above — verified, not guessed). Jot them down before moving on:
+> - the **RAG service base URL** and its **auth token/header**, from the deployed service's page and OpenAPI console;
+> - the **PostgreSQL vector store** connection details and the **collection name** `voltmart-policies`, from [Step 2.2](#step-22--create-the-managed-vector-database) and [Step 2.3](#step-23--create-the-scheduled-rag-ingestion-automation);
+> - your **OpenAI API key** and embedding model `text-embedding-ada-002`, from [Step 2.3](#step-23--create-the-scheduled-rag-ingestion-automation).
+
 #### Step 2.5 — Add AI Agent tool to search the knowledge base
 
 After [Step 2.3](#step-23--create-the-scheduled-rag-ingestion-automation) the knowledge base is **ingested and ready** — VoltMart's policies are chunked, embedded, and sitting in the managed vector database — and after [Step 2.4](#step-24--expose-retrieval-as-an-api-with-a-rag-service) there's a **RAG service** exposing `/retrieve` over HTTP. Back in [Phase 1](#step-14--tell-your-agent-how-to-behave) we already told the agent, in its system prompt, to call `searchVoltMartPolicies` *first* for any policy question. But that tool doesn't exist yet — right now the instruction points at nothing. That's the gap we close here. An agent can only reach the outside world through **tools**, so we give it a [**custom tool**](https://wso2.com/integration-platform/docs/genai/develop/agents/tools) that calls the RAG service's `/retrieve` endpoint. When a customer asks a policy question, the agent calls this tool, which queries the knowledge base over HTTP and hands the matching passages back as text the agent can answer from.
@@ -336,6 +376,8 @@ The flow is short — call `/retrieve`, then flatten the result:
 
 [SCREENSHOT: Chat answering the returns-window question; trace showing the searchVoltMartPolicies call out to the RAG service.]
 
+**Check it.** Run the project (or restart it if it's already running) and open the **Chat** panel again (**AI Chat Agent → Chat**). Ask a policy question like *"How long do I have to return something?"* — this time the agent calls `searchVoltMartPolicies`, grounds its answer in the returns policy, and replies with the 30-day window. Ask something not in the docs and it should say it doesn't have that on file rather than guess. That's the full Phase 1 + Phase 2 loop working end to end.
+
 More on the query side of RAG: [RAG retrieval](https://wso2.com/integration-platform/docs/manage/cloud/rag-ingestion/retrieval) and [the RAG service API](https://wso2.com/integration-platform/docs/manage/cloud/rag-ingestion/service).
 More on tools: [Tools](https://wso2.com/integration-platform/docs/genai/develop/agents/tools).
 
@@ -360,6 +402,8 @@ restarts, or shared across instances by backing it with an external store such a
 [Memory guide](https://wso2.com/integration-platform/docs/genai/develop/agents/memory) to configure
 a persistent short-term memory store in WSO2 Integrator.
 
+**Check it.** There's nothing to build here — but you can confirm the memory works. In the **Chat** panel, tell the agent your name or an order number in one message, then refer back to it ("what did I just tell you?") in the next. Within the same chat it remembers; that's the built-in short-term memory at work, with no configuration on your part.
+
 ---
 
 ### Phase 4 — Take it for a spin
@@ -369,76 +413,41 @@ conversations that each exercise a different capability you built: answering fro
 gracefully declining when a request is beyond what it should handle. Run through them and watch the
 agent decide, on its own, when to answer and when to step back.
 
-Run the project using the `Run` button in the top right and open the **Chat** panel (or use `curl` against
-`http://localhost:9090/voltMartAssistant/chat` with a JSON body of `{"sessionId": "...", "message": "..."}`).
-Use the **same `sessionId`** within a conversation, a **new one** between conversations.
+Run the project using the **Run** button (top-right), then open the agent's built-in **Chat** panel — click the **AI Chat Agent**, then the **Chat** button at the top-left of the canvas. This is the simplest way to talk to the agent: the chat service was created and wired up for you when you added the AI Chat Agent in [Step 1.2](#step-12--add-the-ai-chat-agent), so there's no URL to assemble and no port to remember. Each conversation in the panel is its own session — start a **new chat** between the two conversations below, and keep a **single chat** going within one.
+
+> 💡 **Prefer to call it over HTTP?** The chat service the agent exposes can also be invoked programmatically — that's how parts 2–4 drive it. The endpoint is generated for you; you can see its exact path in the service's view in the editor. We use the **Chat** panel here because it needs zero setup.
 
 #### Sample 1 Test — Knowledge answer (RAG)
 
-Ask a policy question and the agent answers straight from the docs.
+Ask a policy question and the agent answers straight from the docs. In the **Chat** panel, send:
 
-**Input:**
+> How long do I have to return something?
 
-```bash
-curl -X POST http://localhost:9090/voltMartAssistant/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "sessionId": "sample-1",
-    "message": "How long do I have to return something?"
-  }'
-```
+**Agent replies:**
 
-**Output:**
-
-```json
-{
-  "message": "You have 30 days from the delivery date to return most items, as long as they're in their original packaging with all accessories. Want me to walk you through starting a return?"
-}
-```
+> You have 30 days from the delivery date to return most items, as long as they're in their original packaging with all accessories. Want me to walk you through starting a return?
 
 *Expected behavior:* calls `searchVoltMartPolicies`, answers from the returns policy, stays brief.
 
 #### Sample 2 Test — Policy exception (graceful decline)
 
-Ask for something the agent isn't allowed to grant — a refund or an exception to policy — and it declines without overpromising, pointing you to the support team. Reuse the **same `sessionId`** so it stays in the same conversation when you push back on the second turn.
+Ask for something the agent isn't allowed to grant — a refund or an exception to policy — and it declines without overpromising, pointing you to the support team. Stay in the **same chat** so it keeps the context when you push back on the second turn.
 
-**Input (turn 1 — request an exception):**
+**You type (turn 1 — request an exception):**
 
-```bash
-curl -X POST http://localhost:9090/voltMartAssistant/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "sessionId": "sample-2",
-    "message": "I returned my speaker 40 days after delivery. Can you refund me anyway?"
-  }'
-```
+> I returned my speaker 40 days after delivery. Can you refund me anyway?
 
-**Output (turn 1 — declines, points to support):**
+**Agent replies (turn 1 — declines, points to support):**
 
-```json
-{
-  "message": "I'm sorry, but returns fall outside our 30-day window and I'm not able to approve an exception myself. Our VoltMart support team can review your case — they're available 8:00 AM – 8:00 PM ET, seven days a week."
-}
-```
+> I'm sorry, but returns fall outside our 30-day window and I'm not able to approve an exception myself. Our VoltMart support team can review your case — they're available 8:00 AM – 8:00 PM ET, seven days a week.
 
-**Input (turn 2 — customer pushes back):**
+**You type (turn 2 — push back):**
 
-```bash
-curl -X POST http://localhost:9090/voltMartAssistant/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "sessionId": "sample-2",
-    "message": "Come on, it was only 10 days late. Just approve it."
-  }'
-```
+> Come on, it was only 10 days late. Just approve it.
 
-**Output (turn 2 — stays firm, no promises):**
+**Agent replies (turn 2 — stays firm, no promises):**
 
-```json
-{
-  "message": "I understand the frustration, and I'm sorry for the trouble. Refund exceptions are decided by the VoltMart support team, not something I can authorize — please reach out to them at 8:00 AM – 8:00 PM ET and they'll take a look."
-}
-```
+> I understand the frustration, and I'm sorry for the trouble. Refund exceptions are decided by the VoltMart support team, not something I can authorize — please reach out to them at 8:00 AM – 8:00 PM ET and they'll take a look.
 
 *Expected behavior:* calls `searchVoltMartPolicies`, recognizes the request is an exception it can't authorize, declines politely, and directs the customer to support — without promising a refund.
 

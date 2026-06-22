@@ -301,14 +301,6 @@ Step back and look at the full arc of the series. You started with a blank machi
 
 That last step is what separates a demo from a service. The agent's logic never changed in this part — what changed is that it's now always-on, configured per environment from a single tested build, and *transparent*: you can watch a single turn in the trace viewer while you build, and watch the whole fleet in the cloud console once it's live. An agent you can observe is an agent you can trust, improve, and safely put in front of customers.
 
-### Where to go next
-
-- **Persistent memory in the cloud.** The in-process memory from part 1 resets when a component restarts or scales out. Back it with an external store (e.g. MSSQL) so conversations survive — see [Memory](https://wso2.com/integration-platform/docs/genai/develop/agents/memory).
-- **Lock down the endpoints.** Keep the orders service and receiver **project-scoped**, expose only the agent, and put proper **API-key or OAuth2** auth in front of it instead of a test key. For privileged tools, authorize the MCP endpoint so only a staff client can reach them — see [Tools](https://wso2.com/integration-platform/docs/genai/develop/agents/tools).
-- **Evaluate before every change.** Turn the traces you exported in [Step C.1](#step-c1--observe-in-development-with-the-agent-trace-viewer) into an evalset and gate prompt, model, and tool changes on a pass-rate check — [Evaluations](https://wso2.com/integration-platform/docs/genai/develop/agents/evaluations).
-- **Alert on what matters.** Beyond latency and errors, add a **log alert** on the explicit signals your tools emit, so a surge in `VERIFICATION_FAILED` or `RETURN_WINDOW_CLOSED` reaches a human.
-- **Promote with confidence.** Use the **Development** environment as a true staging area — point it at test data and a cheaper model deployment, verify in the trace viewer and the dashboards, then **Promote** the exact build to Production.
-
 That's the series, end to end: you now have an AI agent that doesn't just talk, but acts within its bounds, reaches the right people the moment something happens — and runs, observably, in production. Go build your own, and ship it.
 
 ---

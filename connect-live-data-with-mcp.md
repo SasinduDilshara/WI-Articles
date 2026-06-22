@@ -421,12 +421,33 @@ Step back and look at what you built. The orders service knows nothing about AI 
 
 ## What's next in the series
 
-The agent can now read and write live order data, but when a customer wants to *return* something it still hits a wall — it can only point them at support. In **[part 3](push-live-notifications-with-webhooks.md)** we close that gap: we add a `requestReturn` capability that lets the agent file a return on the customer's behalf and fires a **webhook** the moment it does, pushing a live alert to the VoltMart returns team. Crucially, the agent files the request but never decides the outcome — which is what makes it a safe write to put in front of customers. As before, we'll build the capability as its own tool and then hand it to the same agent.
+Your agent can now read and write *live* order data over MCP — a real backend behind a clean
+contract. That's a big step up from the policy-only agent you started part 2 with. But there's still
+a gap: when a customer wants to *return* something, the agent can only point them at support. The
+next two parts close that gap and then take the whole thing to production, building directly on the
+project you just extended:
 
-A few directions to explore on your own first:
+- **Part 3 — Act on a request, then push a live notification over a webhook.** Right now the agent
+  can't file a return. In part 3 we add a `requestReturn` capability that lets the agent file a
+  return on the customer's behalf and fires a **webhook** the moment it does, pushing a live alert to
+  the VoltMart returns team. Crucially, the agent files the request but never decides the outcome —
+  which is what makes it a safe write to put in front of customers. As before, we build it as its own
+  tool and hand it to this same agent. See
+  [Live notifications with webhooks](push-live-notifications-with-webhooks.md).
+- **Part 4 — Deploy it to WSO2 Cloud and observe it.** In part 4 we take the finished agent (and the
+  orders service and returns receiver it depends on) to production on **WSO2 Cloud**, switch it to a
+  production model provider and a managed database, and **observe** every tool call and decision — with
+  the dev-time agent trace viewer and the cloud's runtime logs, metrics, alerts, and traces. See
+  [Deploy and observe your AI agent on WSO2 Cloud](deploy-and-observe-on-wso2-cloud.md).
 
-- **Add a fourth tool.** Click **+ Add Tool** on the MCP service and add one more. Restart only the service — the agent picks it up with no changes, thanks to automatic tool discovery. (We'll do exactly this in part 3.)
-- **Swap the database.** Point the PostgreSQL connection at a managed database instead of the Docker one. Nothing else changes.
-- **Secure the MCP endpoint.** For anything beyond local development, put auth in front of the MCP service — see the [tools documentation](https://wso2.com/integration-platform/docs/genai/develop/agents/tools).
+And a few directions to explore on your own, beyond the series:
+
+- **Add a fourth tool.** Click **+ Add Tool** on the MCP service and add one more. Restart only the
+  service — the agent picks it up with no changes, thanks to automatic tool discovery. (We'll do
+  exactly this in part 3.)
+- **Swap the database.** Point the PostgreSQL connection at a managed database instead of the Docker
+  one. Nothing else in the service or the agent changes.
+- **Secure the MCP endpoint.** For anything beyond local development, put auth in front of the MCP
+  service — see the [tools documentation](https://wso2.com/integration-platform/docs/genai/develop/agents/tools).
 
 ---
