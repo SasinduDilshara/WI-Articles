@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Part 4 — Deploy and Observe Your AI Agent on WSO2 Cloud</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <style>
+body { font-family: Arial, Helvetica, sans-serif; line-height: 1.5; max-width: 820px;
+       margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+h1 { font-size: 26px; } h2 { font-size: 21px; margin-top: 1.6em; }
+h3 { font-size: 17px; } h4 { font-size: 15px; }
+code { font-family: 'Courier New', monospace; background: #f3f3f3; padding: 1px 4px;
+       border-radius: 3px; font-size: 0.95em; }
+pre { background: #f5f5f5; padding: 12px; border-radius: 6px; overflow-x: auto;
+      border: 1px solid #e0e0e0; }
+pre code { background: none; padding: 0; }
+blockquote { border-left: 4px solid #c8c8c8; margin: 1em 0; padding: 0.2em 1em;
+             color: #444; background: #fafafa; }
+a { color: #1155cc; }
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Part 4 — Deploy and Observe Your AI Agent on WSO2
+Cloud</h1>
+</header>
+<h1 id="deploy-and-observe-your-ai-agent-on-wso2-cloud">Deploy and
+Observe Your AI Agent on WSO2 Cloud</h1>
+<h2 id="introduction">Introduction</h2>
+<p>Across this series your VoltMart Support Assistant grew from a blank
+machine into a real, capable AI agent. In <strong>part 1</strong> it
+learned to answer policy questions from a knowledge base and step back
+when a request was beyond its remit. In <strong>part 2</strong> it
+gained a live orders backend over <strong>MCP</strong>, so it could look
+up, create, and cancel real orders. In <strong>part 3</strong> it
+learned to file a return and <strong>push a live alert</strong> to the
+team the instant it did.</p>
+<p>There's just one thing left, and it's the thing that turns a tutorial
+into a product: it all still runs on your laptop. The moment you close
+the IDE, the agent is gone. To put it in front of real customers it
+needs to run somewhere always-on, and — just as importantly — you need
+to be able to <em>see what it's doing</em> once it's there. An agent
+makes decisions on its own; shipping one you can't observe is shipping
+one you can't trust.</p>
+<p>That's what this final part is about. We'll take the very same agent
+— and the orders service and returns receiver it depends on — and
+<strong>deploy it to <a
+href="https://wso2.com/integration-platform/docs/deploy/cloud/overview">WSO2
+Cloud</a></strong>, the managed runtime for the WSO2 Integration
+Platform. Then we'll <strong>observe it</strong> two ways: the built-in
+<strong>agent trace viewer</strong> while you build, which shows every
+tool call and LLM decision in real time, and <strong>WSO2 Cloud's
+observability</strong> once it's live — runtime logs, metrics, alerts,
+and distributed traces.</p>
+<p>If you've followed parts 1 through 3, you have everything you need.
+Let's ship it.</p>
+<hr />
+<h2 id="what-we-are-going-to-do">What we are going to do</h2>
+<p>This part has two acts, deploy and observe, and a short prep step
+before them:</p>
+<ol type="1">
+<li><strong>Make it production-ready.</strong> A few things that were
+fine on localhost aren't fine in the cloud. We switch the agent off the
+development-only WSO2 model provider and onto <strong>Azure
+OpenAI</strong>, move the orders database off Docker and onto a
+<strong>managed database</strong>, and replace every hardcoded
+<code>localhost</code> URL with a <strong>configurable</strong> so the
+same build can run in any environment.</li>
+<li><strong>Deploy to WSO2 Cloud.</strong> We push all three
+integrations — the <strong>agent</strong>, the <strong>orders MCP
+service</strong>, and the <strong>returns-team receiver</strong> — to
+WSO2 Cloud straight from the IDE, set their configuration and secrets
+per environment, wire them to each other by their cloud endpoints, and
+promote from <strong>Development</strong> to
+<strong>Production</strong>.</li>
+<li><strong>Observe the agent.</strong> First in development, with the
+built-in <strong>agent execution trace viewer</strong> that lays out the
+agent's tool calls, LLM calls, and token usage span by span. Then in
+production, with the WSO2 Cloud console's <strong>runtime logs, metrics,
+alerts</strong>, and <strong>OpenTelemetry-based distributed
+tracing</strong>.</li>
+</ol>
+<p>By the end you'll have the same VoltMart agent running as a managed
+cloud service, and a clear window into every decision it makes — in dev
+and in production.</p>
+<h3 id="architecture">Architecture</h3>
+<blockquote>
+<p>🖼️ <strong>[INSERT IMAGE HERE — VoltMart on WSO2 Cloud: the three
+integrations from parts 1–3 — the AI agent, the orders MCP service, and
+the returns-team receiver — now run as managed components in a WSO2
+Cloud project, each deployed from Git into a Development and a
+Production environment. The agent calls Azure OpenAI for its LLM, the
+cloud RAG service for policy retrieval, and the orders MCP service over
+its cloud endpoint; the orders service reads and writes a managed
+PostgreSQL database and POSTs return events to the receiver. The WSO2
+Cloud observability plane collects runtime logs, metrics, and
+OpenTelemetry traces from all three components, while the IDE's agent
+trace viewer shows tool calls and LLM calls during
+development.]</strong></p>
+</blockquote>
+<blockquote>
+<p>📝 <strong>Diagram note:</strong> the figure should show one
+<strong>WSO2 Cloud project</strong> containing three deployed components
+(agent, orders MCP service, returns receiver), each spanning a
+<strong>Development</strong> and <strong>Production</strong> environment
+and built from a <strong>Git repository</strong>; the agent's outbound
+calls to <strong>Azure OpenAI</strong>, the <strong>managed
+database</strong> behind the orders service, the
+<strong>webhook</strong> to the receiver, and a side panel for
+<strong>observability</strong> (logs, metrics, traces) fed by all three.
+The dev-time <strong>agent trace viewer</strong> sits beside the IDE,
+separate from the cloud.</p>
+</blockquote>
+<p>Nothing about the agent's <em>logic</em> changes in this part — the
+system prompt, the tools, and the MCP wiring are exactly what you built
+in parts 1–3. What changes is <em>where it runs</em> and <em>how you
+watch it</em>.</p>
+<hr />
+<h2 id="prerequisites">Prerequisites</h2>
+<p>You'll need everything from the earlier parts, plus a couple of
+cloud-side accounts:</p>
+<ul>
+<li><strong>The three projects from parts 1–3</strong> — the
+<code>voltmart-support</code> agent, the <code>orders-service</code> MCP
+service, and the <code>notifications-receiver</code>. We deploy them
+as-is (with the small production tweaks in Part A).</li>
+<li><strong>A WSO2 Cloud account.</strong> If you don't have one yet,
+follow <a
+href="https://wso2.com/integration-platform/docs/get-started/setup/sign-up-sign-in">Sign
+up and sign in</a>. The console lives at
+<code>https://console.devant.dev</code>.</li>
+<li><strong>An Azure OpenAI resource</strong> with a deployed chat model
+(e.g. a GPT-4-class deployment). You'll need its <strong>endpoint
+URL</strong>, an <strong>API key</strong>, the <strong>deployment
+name</strong>, and an <strong>API version</strong>. (Prefer OpenAI or
+Anthropic? The steps are identical — just pick that provider's form
+instead. See <a
+href="https://wso2.com/integration-platform/docs/genai/develop/components/model-providers">Model
+providers</a>.)</li>
+<li>A <strong>Git account</strong> (GitHub is the smoothest — one-click
+authorization; GitLab, Bitbucket, and Azure DevOps work too with
+credentials added at the organization level). WSO2 Cloud builds from a
+repository, so your projects will be pushed to Git as part of
+deploying.</li>
+</ul>
+<p>You won't need Docker in the cloud — the throwaway PostgreSQL
+container from part 2 is replaced by a managed database in Part A.</p>
+<blockquote>
+<p>💡 <strong>A note on the WSO2 Integrator version.</strong> The agent
+trace viewer and evaluation features used in the <em>observe</em> half
+ship with <strong>WSO2 Integrator 5.0.0</strong> and later. If you don't
+see the <strong>Tracing</strong> toggle described below, update your
+WSO2 Integrator install.</p>
+</blockquote>
+<hr />
+<h2 id="part-a--make-it-production-ready">Part A — Make it
+production-ready</h2>
+<p>Three things that were perfectly fine for local development need to
+change before this runs in the cloud. None of them touch the agent's
+behaviour — they're all about credentials, durability, and not
+hardcoding addresses.</p>
+<h3 id="step-a1--switch-the-agent-to-azure-openai">Step A.1 — Switch the
+agent to Azure OpenAI</h3>
+<p>Back in <strong>part 1</strong> we built and tested on the
+<strong>WSO2 default model provider</strong>. That provider is meant
+<strong>only for development and testing</strong> — its access token can
+even expire mid-session. For production you switch to a model provider
+of your own, and here we'll use <strong>Azure OpenAI</strong>.</p>
+<ol type="1">
+<li>Open the <code>voltmart-support</code> project and the <strong>AI
+Chat Agent</strong>.</li>
+<li>Click the <strong>model provider icon</strong> on the <strong>AI
+Agent</strong> node, then select <strong>Create New Model
+Provider</strong>.</li>
+<li>Choose <strong>Azure OpenAI</strong> and fill in the form:
+<ul>
+<li><strong>Service URL</strong> — the base URL of your Azure OpenAI
+resource, e.g. <code>https://your-resource.openai.azure.com</code>.</li>
+<li><strong>API Key</strong> — your Azure OpenAI API key.</li>
+<li><strong>Deployment ID</strong> — the deployment identifier you
+created in the Azure portal (the model name is implicit in the
+deployment).</li>
+<li><strong>API Version</strong> — e.g.
+<code>2023-07-01-preview</code>.</li>
+</ul></li>
+<li>Attach it to the agent and <strong>Save</strong>.</li>
+</ol>
+<blockquote>
+<p>⚠️ <strong>Don't hardcode the key.</strong> Store the <strong>API
+Key</strong> (and ideally the service URL and deployment ID) as
+<strong>configurable values</strong> rather than literals in the form,
+so the real secret lives outside your source and is supplied per
+environment in the cloud — exactly the configuration model WSO2 Cloud
+expects (see Step B.3). WSO2 Integrator keeps these in
+<code>Config.toml</code>, which you keep out of Git.</p>
+</blockquote>
+<p>The full provider list (Azure OpenAI, OpenAI, Anthropic, Google
+Vertex AI, Mistral, DeepSeek, Ollama, OpenRouter, and the dev-only WSO2
+default) and each provider's fields are in <a
+href="https://wso2.com/integration-platform/docs/genai/develop/components/model-providers">Model
+providers</a>.</p>
+<h3 id="step-a2--move-the-orders-database-off-docker">Step A.2 — Move
+the orders database off Docker</h3>
+<p>In <strong>part 2</strong> the orders lived in a throwaway PostgreSQL
+container — great for a tutorial, gone the moment you run
+<code>docker compose down</code>. A deployed service needs a database
+that's always there. So point the <code>ordersDb</code> connection at a
+<strong>managed database</strong> instead of the local container.</p>
+<ol type="1">
+<li>Provision a managed PostgreSQL database — WSO2 Cloud offers fully
+managed PostgreSQL (the same managed-database capability you used for
+the RAG vector store in part 1; see <a
+href="https://wso2.com/integration-platform/docs/manage/cloud/rag-ingestion/vector-databases">Managed
+vector databases</a>), or use any managed PostgreSQL your team already
+runs.</li>
+<li>Apply the part-3 schema (<code>db/init.sql</code>) to it once, so
+the <code>orders</code> and <code>returns</code> tables and the seed
+rows exist.</li>
+<li>In the <code>orders-service</code> project, open the
+<strong><code>ordersDb</code></strong> PostgreSQL connection and replace
+the local host/port/credentials with the managed database's — and, as
+with the model key, supply them through <strong>configurables</strong>
+so the production credentials never sit in source.</li>
+</ol>
+<p>Nothing else in the orders service changes: the three MCP tools
+(<code>getStatus</code>, <code>createOrder</code>,
+<code>removeOrder</code>) and the part-3 <code>requestReturn</code> tool
+all reach the database through that one connection, so repointing it is
+the only move.</p>
+<blockquote>
+<p>💡 Part 2 promised this would be easy: <em>"Swap the database — point
+the PostgreSQL connection at a managed database instead of the Docker
+one. Nothing else changes."</em> This is that step.</p>
+</blockquote>
+<h3 id="step-a3--replace-every-localhost-with-a-configurable">Step A.3 —
+Replace every <code>localhost</code> with a configurable</h3>
+<p>This is the one that bites if you skip it. On your laptop the agent
+reached the orders service at <code>http://localhost:8290/mcp</code>,
+and the orders service reached the returns receiver at
+<code>http://localhost:9091/notifications</code>. In the cloud those
+addresses are meaningless — each integration runs as its own component
+with its own URL. So anything pointing at <code>localhost</code> must
+become a <strong>configurable</strong> you can set per environment.</p>
+<p>Audit the three projects for hardcoded endpoints and make each one a
+configurable:</p>
+<ul>
+<li><strong>Agent → orders MCP service.</strong> The MCP toolkit URL
+(<code>ordersMcpUrl</code> in part 2) must be a configurable. You'll set
+it to the orders service's cloud endpoint in Step B.4.</li>
+<li><strong>Agent → RAG service.</strong> The
+<code>searchVoltMartPolicies</code> tool already calls the cloud
+<strong>RAG service</strong> over HTTP using its base URL and token
+(from <strong>part 1, Step 2.4</strong>) — confirm those are
+configurables, not literals.</li>
+<li><strong>Orders service → returns receiver.</strong> The
+<code>notifier</code> HTTP connection's base URL (part 3) must be a
+configurable, set to the receiver's cloud endpoint.</li>
+</ul>
+<blockquote>
+<p>💡 <strong>Why this matters.</strong> WSO2 Cloud's whole deployment
+model is <em>build once, deploy many</em>: one build is promoted from
+Development to Production, and the <strong>only</strong> thing that
+differs between environments is the configuration injected at runtime.
+Hardcode a URL or a key and you've baked one environment into the image.
+Make it a configurable and the same build runs anywhere. See <a
+href="https://wso2.com/integration-platform/docs/get-started/concepts/integration-cloud-concepts">WSO2
+Cloud concepts</a>.</p>
+</blockquote>
+<p>Finally, confirm observability is compiled into each project — open
+each <code>Ballerina.toml</code> and check for:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[build-options]</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="dt">observabilityIncluded</span> <span class="op">=</span> <span class="cn">true</span></span></code></pre></div>
+<p>This flag includes the components that emit metrics and traces. It's
+on by default in these projects; we'll lean on it in the
+<em>observe</em> half. (More in Step C.2.)</p>
+<hr />
+<h2 id="part-b--deploy-to-wso2-cloud">Part B — Deploy to WSO2 Cloud</h2>
+<p>With the agent production-ready, deploying is mostly clicking. WSO2
+Cloud builds your integration from a Git repository and runs it as a
+managed component — you don't manage servers, containers, or scaling.
+We'll deploy straight from the IDE; if you'd rather, you can <a
+href="https://wso2.com/integration-platform/docs/deploy/cloud/import-project">import
+an existing repository</a> or build entirely in the browser-based <a
+href="https://wso2.com/integration-platform/docs/deploy/cloud/deploy-from-cloud-editor">Cloud
+Editor</a> — same result.</p>
+<blockquote>
+<p><strong>A quick map of the concepts.</strong> In WSO2 Cloud an
+<strong>organization</strong> holds your <strong>projects</strong>; a
+project holds your <strong>integrations</strong> (components); and each
+integration is deployed into <strong>environments</strong> — by default
+a <strong>Development</strong> and a <strong>Production</strong> one. A
+build is created once and <em>promoted</em> across environments, with
+configuration injected per environment. Full glossary: <a
+href="https://wso2.com/integration-platform/docs/get-started/concepts/integration-cloud-concepts">WSO2
+Cloud concepts</a>.</p>
+</blockquote>
+<h3 id="step-b1--deploy-each-integration-from-the-ide">Step B.1 — Deploy
+each integration from the IDE</h3>
+<p>We have three integrations to deploy. The flow is the same for each;
+do the <strong>orders MCP service</strong> and the <strong>returns
+receiver</strong> first (the agent depends on them), then the agent.</p>
+<ol type="1">
+<li>Open the integration's <strong>project overview</strong> canvas in
+WSO2 Integrator.</li>
+<li>In the <strong>Deploy to WSO2 Cloud</strong> box, click
+<strong>Deploy</strong>.</li>
+<li><strong>Sign in</strong> to WSO2 Cloud if prompted, and
+<strong>select your organization</strong> (or create one).</li>
+<li>If the project isn't in Git yet, the IDE walks you through it:
+initialize the repository via <strong>Source Control</strong>, commit
+your files, and publish to GitHub (authorizing access when asked). WSO2
+Cloud needs read access to the repository to build from it.</li>
+<li>Click <strong>Deploy All</strong> to deploy the whole project (or
+open a single integration's overview and click <strong>Deploy</strong>
+to do just one).</li>
+</ol>
+<p>WSO2 Cloud connects to the repository, <strong>builds</strong> the
+integration, and automatically <strong>deploys it to the Development
+environment</strong>. Repeat for all three projects.</p>
+<p>[SCREENSHOT: The "Deploy to WSO2 Cloud" box on the project overview
+canvas, with the Deploy button.]</p>
+<p>See <a
+href="https://wso2.com/integration-platform/docs/deploy/cloud/push-from-ide">Deploy
+from the IDE</a> for the full walkthrough.</p>
+<h3 id="step-b2--watch-the-build">Step B.2 — Watch the build</h3>
+<p>A deploy kicks off a build pipeline — it turns your source into a
+container image, scans it, and pushes it to the registry before
+deploying. You can follow it in the console:</p>
+<ol type="1">
+<li>Open the component in the WSO2 Cloud console.</li>
+<li>Go to the <strong>Build</strong> page and, if needed, click
+<strong>Build Latest</strong> to trigger a build.</li>
+<li>Click <strong>View Details</strong> next to a build to see its
+logs.</li>
+</ol>
+<p>When the build succeeds, the component shows as deployed in
+<strong>Development</strong>. If a build fails, the logs here are the
+first place to look (and you can set a <strong>build-failure
+alert</strong> later — see Step C.2).</p>
+<h3 id="step-b3--set-configuration-and-secrets-per-environment">Step B.3
+— Set configuration and secrets per environment</h3>
+<p>Now we feed each component the configuration it needs — the values
+you turned into configurables in Part A. This is where the Azure key,
+the database credentials, the RAG token, and the inter-service URLs
+live, encrypted and separate from your code.</p>
+<ol type="1">
+<li>Open a component and go to its <strong>Deploy</strong> page.</li>
+<li>In the environment card, click <strong>Manage Configs and
+Secrets</strong>.</li>
+<li>Add each value under <strong>Environment Variables</strong> (and
+mark sensitive ones — the Azure API key, the database password, the RAG
+token — as <strong>secrets</strong>). You can also mount a config file
+under <strong>File Mount</strong> if you prefer to supply a whole
+<code>Config.toml</code>.</li>
+<li>Click <strong>Save and Deploy</strong> to roll the values into the
+running component.</li>
+</ol>
+<p>Do this for each component:</p>
+<ul>
+<li><strong>Agent:</strong> Azure OpenAI service URL / key / deployment
+/ API version, the RAG service base URL and token, the vector-store and
+embedding credentials, and <code>ordersMcpUrl</code> (set in the next
+step).</li>
+<li><strong>Orders service:</strong> the managed database
+host/port/database/user/password, and the <code>notifier</code> base URL
+(next step).</li>
+<li><strong>Receiver:</strong> any settings it needs (it mostly just
+listens).</li>
+</ul>
+<blockquote>
+<p>💡 <strong>Configs and secrets are environment-scoped.</strong> The
+Development environment can point at a test database and a cheaper model
+deployment; Production can point at the real ones — same build,
+different injected values. All of it is <strong>encrypted at rest and in
+transit</strong>. See <a
+href="https://wso2.com/integration-platform/docs/get-started/concepts/integration-cloud-concepts">WSO2
+Cloud concepts</a>.</p>
+</blockquote>
+<p>[SCREENSHOT: The "Manage Configs and Secrets" panel with Environment
+Variables and a secret value.]</p>
+<h3 id="step-b4--wire-the-services-together">Step B.4 — Wire the
+services together</h3>
+<p>On localhost the three integrations found each other at
+<code>localhost:8290</code> and <code>localhost:9091</code>. In the
+cloud each deployed integration exposes its own <strong>endpoint
+URL</strong>, so we point the configurables at those.</p>
+<ol type="1">
+<li>Open the deployed <strong>orders MCP service</strong>, find its
+endpoint URL, and set the agent's <code>ordersMcpUrl</code> configurable
+to it (the MCP base path, e.g. <code>…/mcp</code>).</li>
+<li>Open the deployed <strong>returns receiver</strong>, find its
+endpoint URL, and set the orders service's <code>notifier</code> base
+URL configurable to it.</li>
+<li>Save and redeploy the components whose configuration you
+changed.</li>
+</ol>
+<p>Because services in the same project can reach one another over an
+internal (project-scoped) endpoint, you can keep the orders service and
+receiver off the public internet and expose only what needs to be
+public. Each endpoint has a <strong>visibility</strong> setting —
+<strong>Project</strong>, <strong>Organization</strong>, or
+<strong>Public</strong> — so you choose exactly how reachable each
+component is.</p>
+<blockquote>
+<p>⚠️ <strong>Confirm the exact endpoint URLs against your
+console.</strong> The endpoint URL generally follows the shape
+<code>&lt;domain&gt;/&lt;project&gt;/&lt;component&gt;/&lt;endpoint&gt;</code>,
+but the precise URL (and whether you use a public or project-internal
+address for service-to-service calls) is shown on <strong>your</strong>
+deployed component's page in the console. Copy the real values from
+there — don't assume the path. This is the cloud equivalent of the
+<code>&lt;RAG_SERVICE_BASE_URL&gt;</code> placeholders you filled in
+back in part 1.</p>
+</blockquote>
+<h3 id="step-b5--promote-to-production">Step B.5 — Promote to
+Production</h3>
+<p>Everything so far landed in <strong>Development</strong> — your safe
+place to test. When you're happy, promote each component to
+<strong>Production</strong>:</p>
+<ol type="1">
+<li>On the component's <strong>Deploy</strong> page, open the
+<strong>Development</strong> environment card.</li>
+<li>Click <strong>Promote</strong>.</li>
+<li>Confirm the Production environment's configuration (it has its own
+configs and secrets — set the production database, the production Azure
+deployment, and the production inter-service URLs here).</li>
+</ol>
+<p>Promotion reuses the build you already tested in Development —
+<em>build once, deploy many</em> — so what you verified is exactly what
+goes live. The Production component shows <strong>Active</strong> once
+it's up.</p>
+<h3 id="step-b6--talk-to-the-deployed-agent">Step B.6 — Talk to the
+deployed agent</h3>
+<p>The agent now runs as a managed service with its own endpoint. To
+call it you need its URL and a credential.</p>
+<ol type="1">
+<li>On the agent component, find its <strong>endpoint URL</strong>.</li>
+<li>Deployed endpoints are secured — depending on how you expose it,
+you'll authenticate with an <strong>API key</strong> or
+<strong>OAuth2</strong>. For a quick test, use the console's built-in
+test console: click <strong>Get Test Key</strong> (or <strong>Generate
+Token</strong>) to mint a short-lived token, and either invoke it inline
+or copy the generated <strong>cURL</strong>.</li>
+</ol>
+<p>A call looks just like the local ones from earlier parts, but against
+the cloud URL and with the auth header — <strong>replace the
+<code>&lt;...&gt;</code> placeholders with your own values</strong>:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-X</span> POST <span class="st">&quot;&lt;AGENT_ENDPOINT_URL&gt;/voltMartAssistant/chat&quot;</span> <span class="dt">\</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Content-Type: application/json&quot;</span> <span class="dt">\</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Authorization: Bearer &lt;TEST_TOKEN&gt;&quot;</span> <span class="dt">\</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">-d</span> <span class="st">&#39;{</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;sessionId&quot;: &quot;cloud-1&quot;,</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;message&quot;: &quot;How long do I have to return something?&quot;</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="st">  }&#39;</span></span></code></pre></div>
+<p>A successful response is the same JSON you saw locally — only now it
+came from the cloud:</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="st">&quot;You have 30 days from the delivery date to return most items, as long as they&#39;re in their original packaging with all accessories. Want me to walk you through starting a return?&quot;</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<blockquote>
+<p>⚠️ <strong>Test keys are for testing.</strong> The <strong>Get Test
+Key</strong> token is meant for development checks, not production
+traffic. For real clients, set up proper API-key or OAuth2 credentials
+and (for the internal services) keep their endpoints project-scoped.</p>
+</blockquote>
+<p>That's the deploy done. The same agent, the same orders service, the
+same receiver — now running always-on in WSO2 Cloud, talking to Azure
+OpenAI and a managed database. Next we make it <em>observable</em>.</p>
+<hr />
+<h2 id="part-c--observe-your-agent">Part C — Observe your agent</h2>
+<p>An agent decides things on its own — which tool to call, whether to
+call one at all, what to say when a tool comes back empty. When
+something looks off (it answered without searching the knowledge base;
+it called <code>getStatus</code> before asking for the email), you don't
+want to guess. Observability is how you <em>see</em> those decisions.
+We'll use it at two stages: while you build (the agent trace viewer),
+and once it's live (WSO2 Cloud's observability).</p>
+<h3
+id="step-c1--observe-in-development-with-the-agent-trace-viewer">Step
+C.1 — Observe in development with the agent trace viewer</h3>
+<p>WSO2 Integrator has a built-in, dev-time <strong>trace
+viewer</strong> that records exactly what the agent does on each turn —
+every LLM call and every tool call — and lays it out as a timeline. It
+runs locally alongside the IDE; there's nothing to deploy. This is the
+fastest way to understand and debug the agent before it ever reaches the
+cloud.</p>
+<p><strong>Turn tracing on.</strong> On the <strong>AI Chat
+Agent</strong> canvas, click the <strong>Tracing</strong> toggle in the
+top-right corner so it reads <strong>Tracing: On</strong>. (For an
+inline agent, run <strong>Ballerina: Enable Tracing</strong> from the
+command palette — <code>Cmd/Ctrl + Shift + P</code>.)</p>
+<p><strong>Chat, then open the trace.</strong> Run the agent and send it
+a message from the <strong>Chat</strong> panel. Below each reply a
+<strong>View Trace</strong> link appears; click it. (A <strong>Session
+Traces</strong> button in the chat header lists every trace in the
+session, and an <strong>Execution Steps (n)</strong> dropdown summarizes
+the Chat and tool spans for that turn.) You can also open the
+<strong>Traces</strong> panel directly with <code>Cmd/Ctrl + J</code>
+and use the <strong>agent filter</strong> to show only agent traces.</p>
+<p><strong>Read the timeline.</strong> The trace lays out the turn as a
+tree of <strong>spans</strong>:</p>
+<ul>
+<li>An <strong>Invoke Agent</strong> span at the top — the whole turn,
+with aggregate latency and total input/output tokens.</li>
+<li>One or more <strong>Chat</strong> spans — the calls to the LLM (now
+Azure OpenAI). Each shows latency, <strong>input/output token
+counts</strong>, temperature, provider, and model, and — in its
+Input/Output sections — the messages sent to the model, the <strong>tool
+definitions</strong> it was offered, and the model's response
+<strong>including which tool it chose to call</strong>.</li>
+<li><strong>Execute Tool</strong> spans — the actual tool runs. For
+VoltMart these are exactly the tools you built:
+<code>searchVoltMartPolicies</code>, <code>getStatus</code>,
+<code>createOrder</code>, <code>removeOrder</code>, and
+<code>requestReturn</code>. Each span shows the <strong>arguments passed
+in</strong> and the <strong>value returned</strong> — so you can see,
+for instance, <code>getStatus</code> receiving <code>10432</code> /
+<code>jordan@example.com</code> and returning the live status line, or
+<code>searchVoltMartPolicies</code> returning
+<code>NO_POLICY_FOUND</code>.</li>
+</ul>
+<p>Switch any Input/Output section between <strong>Formatted</strong>
+and <strong>JSON</strong>, search within a span, and view the spans as a
+<strong>Timeline</strong> (Gantt-style) to see where the time actually
+went.</p>
+<p>This is the answer to <em>"why did the agent do that?"</em> You can
+watch it decide to call <code>searchVoltMartPolicies</code> first for a
+policy question, see the exact grounding text it got back, and confirm
+it answered only from that — or catch it skipping the tool and fix the
+system prompt. It's the same decisions you reasoned about in parts 1–3,
+now laid out in front of you.</p>
+<p>[SCREENSHOT: The agent trace viewer — the Invoke Agent → Chat →
+Execute Tool span timeline for a return request, with token counts and
+the requestReturn arguments.]</p>
+<p><strong>From a trace to a test.</strong> Each trace can be exported:
+click the download icon and choose <strong>Export as JSON</strong>, or
+<strong>Export as Evalset</strong> to turn a real conversation into a
+test case. That feeds the <strong><a
+href="https://wso2.com/integration-platform/docs/genai/develop/agents/evaluations">Evaluations</a></strong>
+framework — build a "golden" dataset from real runs and score the agent
+(correctness, tool selection, groundedness, safety, tone) before you
+change a prompt, swap a model, or add a tool. It's how you make sure a
+tweak that helps one case doesn't quietly break ten others — run the
+evalset and check the pass rate before you ship.</p>
+<p>Full reference: <a
+href="https://wso2.com/integration-platform/docs/genai/develop/agents/observability">Agent
+observability</a> and <a
+href="https://wso2.com/integration-platform/docs/genai/develop/agents/evaluations">Evaluations</a>.</p>
+<blockquote>
+<p>💡 <strong>Dev now, prod next.</strong> The trace viewer is a
+<em>development</em> tool — it streams from a trace server running with
+the IDE. To watch the agent once it's deployed, you use WSO2 Cloud's
+observability, next. The two are complementary: the trace viewer is for
+understanding a single turn in depth; cloud observability is for
+watching the whole service in aggregate, around the clock.</p>
+</blockquote>
+<h3 id="step-c2--observe-the-deployed-agent-in-production">Step C.2 —
+Observe the deployed agent in production</h3>
+<p>Once the agent is live in WSO2 Cloud, the console gives you the three
+pillars of observability — <strong>logs, metrics, and traces</strong> —
+without any extra setup. Open the deployed component and look under
+<strong>Observability</strong>.</p>
+<p><strong>Runtime logs.</strong> Go to <strong>Observability → Runtime
+Logs</strong>. Every line your integrations log shows up here —
+including the <code>log:printInfo</code> calls you wrote, like the
+returns receiver's <em>"Returns team alerted"</em> message from part 3.
+Filter by <strong>log level</strong> (Error / Warn / Info / Debug), by
+<strong>environment</strong>, and by time, and search the content
+(Lucene query syntax). Gateway logs (HTTP method, path, status code,
+latency, correlation IDs) sit alongside the application logs. This is
+where you confirm a return actually fired its webhook in production, or
+find the stack trace behind a 500.</p>
+<p><strong>Metrics.</strong> The <strong>Observability</strong>
+dashboard charts the component's health over time — <strong>requests per
+minute, latency, CPU and memory usage, data transfer</strong>. The
+default window is the last 24 hours; click-and-drag on a graph to zoom
+into a spike, and the <strong>Runtime Logs</strong> view updates to the
+log lines from that exact moment — so you can jump from <em>"latency
+spiked at 3pm"</em> straight to <em>"here's what was happening at
+3pm."</em></p>
+<p><strong>Alerts.</strong> Don't wait to be told there's a problem — go
+to <strong>Alerts → Create Alert Rule</strong> and set thresholds. WSO2
+Cloud supports <strong>latency</strong>, <strong>traffic</strong>,
+<strong>resource</strong> (CPU/memory), <strong>log</strong> (fire when
+a phrase recurs in the logs), and <strong>build-failure</strong> alerts,
+with up to 10 rules per integration and notifications to as many as 5
+email addresses. A <em>log alert</em> on a repeated error phrase, or a
+<em>latency alert</em> on the agent's response time, is a good first
+line of defence.</p>
+<p><strong>Distributed tracing.</strong> Because you compiled with
+<code>observabilityIncluded = true</code>, each integration emits
+<strong>OpenTelemetry</strong> traces. A single customer request can
+cross all three components — agent → orders MCP service → database, then
+→ webhook → receiver — and distributed tracing stitches those hops into
+one end-to-end trace, so you can see where latency or an error actually
+lives. You can export these traces to an OpenTelemetry-compatible
+backend such as <strong>Jaeger</strong>, <strong>Zipkin</strong>,
+<strong>New Relic</strong>, or <strong>Datadog</strong>; the setup
+(import the provider, set
+<code>tracingEnabled</code>/<code>tracingProvider</code> in
+<code>Config.toml</code>) is in <a
+href="https://wso2.com/integration-platform/docs/deploy-operate/observe/jaeger-distributed-tracing">Jaeger
+distributed tracing</a> and the <a
+href="https://wso2.com/integration-platform/docs/deploy-operate/observe/observability-overview">observability
+overview</a>.</p>
+<blockquote>
+<p>💡 <strong>Logs are only as good as what you log.</strong> The
+explicit signals you designed across the series —
+<code>NO_POLICY_FOUND</code>, <code>VERIFICATION_FAILED</code>,
+<code>RETURN_WINDOW_CLOSED</code>, and the receiver's <em>"Returns team
+alerted"</em> line — aren't just for the agent to read; they're exactly
+the phrases that make production logs searchable and alertable.
+Well-chosen log lines pay off twice.</p>
+</blockquote>
+<p>The full menu of observability options — the WSO2 Cloud built-ins,
+plus self-hosted Prometheus/Jaeger/Zipkin and commercial New
+Relic/Datadog/Moesif — is in the <a
+href="https://wso2.com/integration-platform/docs/deploy-operate/observe/observability-overview">observability
+overview</a>, <a
+href="https://wso2.com/integration-platform/docs/deploy-operate/observe/metrics-overview">metrics</a>,
+and <a
+href="https://wso2.com/integration-platform/docs/deploy-operate/observe/logging-overview">logging</a>
+docs.</p>
+<hr />
+<h2 id="take-it-for-a-spin">Take it for a spin</h2>
+<p>Let's prove the whole thing end to end, watching it light up in
+observability as it runs. With the three components
+<strong>Active</strong> in Production and their configs wired up, send
+the agent a return request — the part-3 scenario — against the cloud
+endpoint:</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-X</span> POST <span class="st">&quot;&lt;AGENT_ENDPOINT_URL&gt;/voltMartAssistant/chat&quot;</span> <span class="dt">\</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Content-Type: application/json&quot;</span> <span class="dt">\</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Authorization: Bearer &lt;TEST_TOKEN&gt;&quot;</span> <span class="dt">\</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">-d</span> <span class="st">&#39;{</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;sessionId&quot;: &quot;cloud-ret-1&quot;,</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;message&quot;: &quot;I want to return order #10219, it arrived damaged. My email is sam@example.com.&quot;</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="st">  }&#39;</span></span></code></pre></div>
+<p><strong>Agent output:</strong></p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="st">&quot;Done — I&#39;ve filed return request RMA-1 for order #10219 (VoltBook 14 laptop). Our returns team has been notified and will email you next steps within one business day. I can&#39;t approve a refund myself, but the team reviews every request.&quot;</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>Now watch where that single request shows up:</p>
+<ul>
+<li><strong>In the agent trace viewer (if you reproduce it in
+dev):</strong> an <strong>Invoke Agent</strong> span containing a
+<strong>Chat</strong> span where the model chose
+<code>requestReturn</code>, and an <strong>Execute Tool</strong> span
+showing the <code>orderNumber</code> / <code>accountEmail</code> /
+<code>reason</code> arguments and the <code>RMA-1</code> confirmation it
+returned.</li>
+<li><strong>In the orders service's runtime logs (Production):</strong>
+the tool's database insert and the outbound webhook POST.</li>
+<li><strong>In the receiver's runtime logs (Production):</strong> the
+<em>"Returns team alerted"</em> line with <code>reference=RMA-1</code> —
+the same alert you saw in part 3's console, now in the cloud log
+stream.</li>
+<li><strong>In the metrics dashboards:</strong> a tick on
+requests-per-minute for each component the request touched.</li>
+</ul>
+<p><em>Expected behavior:</em> the agent calls
+<code>requestReturn</code> over MCP exactly as it did locally, the
+database row is written, the webhook fires, and <strong>every hop is
+visible</strong> in logs, metrics, and traces. That's the whole point of
+this part — the agent does the same job it always did, and now you can
+see it doing it.</p>
+<hr />
+<h2 id="youve-shipped-it--and-you-can-see-it-run">You've shipped it —
+and you can see it run</h2>
+<p>Step back and look at the full arc of the series. You started with a
+blank machine and built an AI agent that:</p>
+<ul>
+<li><strong>answers</strong> policy questions grounded in a knowledge
+base (part 1),</li>
+<li><strong>reads and writes</strong> live order data over MCP (part
+2),</li>
+<li><strong>acts</strong> on a customer's request and
+<strong>pushes</strong> a live alert the instant it does (part 3), and
+now</li>
+<li><strong>runs in production</strong> on WSO2 Cloud, on your own model
+provider and a managed database, with <strong>full
+observability</strong> into every tool call and decision (part 4).</li>
+</ul>
+<p>That last step is what separates a demo from a service. The agent's
+logic never changed in this part — what changed is that it's now
+always-on, configured per environment from a single tested build, and
+<em>transparent</em>: you can watch a single turn in the trace viewer
+while you build, and watch the whole fleet in the cloud console once
+it's live. An agent you can observe is an agent you can trust, improve,
+and safely put in front of customers.</p>
+<p>That's the series, end to end: you now have an AI agent that doesn't
+just talk, but acts within its bounds, reaches the right people the
+moment something happens — and runs, observably, in production. Go build
+your own, and ship it.</p>
+<hr />
+</body>
+</html>

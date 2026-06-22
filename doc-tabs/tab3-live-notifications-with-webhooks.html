@@ -124,12 +124,12 @@ back,"</em> the best the agent can do today is recite the returns policy
 and point them at the support team — exactly where part 1 left off. The
 request lands nowhere. Nobody on the team hears about it until the
 customer chases it down a second time.</p>
-<p>That's what this final part closes. We'll give the agent the ability
-to <strong>file a return on the customer's behalf</strong> — and the
-moment it does, a <strong>webhook</strong> pushes a live alert to the
-VoltMart returns team, so a human is on it immediately. The customer
-gets an instant, honest confirmation; the team gets a real-time signal
-instead of polling a queue.</p>
+<p>That's what this part closes. We'll give the agent the ability to
+<strong>file a return on the customer's behalf</strong> — and the moment
+it does, a <strong>webhook</strong> pushes a live alert to the VoltMart
+returns team, so a human is on it immediately. The customer gets an
+instant, honest confirmation; the team gets a real-time signal instead
+of polling a queue.</p>
 <p>And notice what we are deliberately <strong>not</strong> doing. The
 agent never decides the outcome — it doesn't approve the refund, and it
 doesn't change the order. It <em>routes a customer's legitimate
@@ -639,10 +639,15 @@ approves the return, emit an event the other way — a webhook to a
 customer channel ("your return is approved, here's your prepaid label").
 The same publisher/subscriber pattern, pointed the other direction.</li>
 </ul>
-<p>That's the series. You now have the full toolkit — knowledge, live
-data, and event-driven action — to build agents that don't just talk,
+<p>That completes the agent itself — knowledge, live data, and
+event-driven action: a toolkit for building agents that don't just talk,
 but act <em>within their bounds</em> and reach the right people the
-moment something happens. Go build your own.</p>
+moment something happens. There's one step left to make it real. In
+<strong><strong>part 4</strong></strong> we <strong>deploy it to WSO2
+Cloud and observe</strong> it in production — switching to a production
+model provider and a managed database, then watching every tool call and
+decision through the agent trace viewer and the cloud's runtime logs,
+metrics, alerts, and traces. See you there.</p>
 <hr />
 </body>
 </html>

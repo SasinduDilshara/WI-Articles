@@ -152,22 +152,34 @@ support team so staff spend their time only where it's truly needed.</p>
 checking that each works before moving on. By the end you'll have a
 running assistant that acts as a front-line support agent.</p>
 <blockquote>
-<p><strong>This is part 1 of a three-part series.</strong> Here we build
+<p><strong>This is part 1 of a four-part series.</strong> Here we build
 the foundation: an agent that answers policy questions from a knowledge
 base and knows when to step back. In <strong><strong>part
 2</strong></strong> we connect it to a live orders backend over
 <strong>MCP</strong> (Model Context Protocol) so it can look up real
-order data, and in <strong><strong>part 3</strong></strong> we let it
+order data, in <strong><strong>part 3</strong></strong> we let it
 <strong>file returns and push a live notification</strong> to the team
-over a webhook. Each part builds directly on the previous one.</p>
+over a webhook, and in <strong><strong>part 4</strong></strong> we
+<strong>deploy it to WSO2 Cloud and observe</strong> every decision it
+makes in production. Each part builds directly on the previous one.</p>
 </blockquote>
 <h3 id="architecture">Architecture</h3>
 <blockquote>
 <p>🖼️ <strong>[INSERT IMAGE HERE — VoltMart Support Assistant
 architecture: a customer chats with the AI agent, which uses a system
 prompt and per-session memory to decide when to call its knowledge/RAG
-tool over a policy knowledge base. A startup automation ingests the
-policy documents into the knowledge base.]</strong></p>
+tool. The tool retrieves grounding passages over HTTP from the WSO2
+Cloud RAG service, which queries a managed PostgreSQL vector database. A
+scheduled RAG ingestion automation in WSO2 Cloud loads the policy
+documents from cloud storage into that vector database.]</strong></p>
+</blockquote>
+<blockquote>
+<p>📝 <strong>Diagram note:</strong> the figure above should be updated
+to show RAG as a cloud capability — a <strong>scheduled ingestion
+automation</strong> feeding a <strong>managed PostgreSQL vector
+database</strong>, and the agent's tool calling the <strong>RAG service
+retrieval API</strong> over HTTP — rather than an in-editor startup
+automation and in-memory knowledge base.</p>
 </blockquote>
 <p>Everything centres on the <strong>AI agent</strong>. A customer's
 message comes in, and the agent — guided by the instructions you give it
@@ -180,7 +192,7 @@ alone, it steps back, <strong>declines politely, and points the customer
 to VoltMart's support team</strong>. All the while it remembers what's
 been said, so the customer never has to repeat themselves.</p>
 <p>That foundation is exactly what this first article delivers end to
-end, and the next two parts then extend this very same agent. You'll
+end, and the parts that follow then extend this very same agent. You'll
 learn how to build each piece in the steps that follow.</p>
 <hr />
 <h2 id="prerequisites-getting-your-tools-ready">Prerequisites: Getting
@@ -201,9 +213,14 @@ machine.</li>
 <p>[SCREENSHOT: WSO2 Integrator open on the welcome screen after
 launch.]</p>
 <h3 id="2-sign-up-for-wso2-cloud">2. Sign up for WSO2 Cloud</h3>
-<p>Refer to <a
+<p><strong>Phase 1 runs entirely on your local machine.</strong> From
+<strong>Phase 2</strong> onward, though, the agent's knowledge base
+(RAG) is built on the <strong>WSO2 Cloud RAG ingestion platform</strong>
+— a managed vector database, a scheduled ingestion automation, and a
+retrieval API — so you'll need a WSO2 Cloud account before you reach
+that phase. Create one now: refer to <a
 href="https://wso2.com/integration-platform/docs/get-started/setup/sign-up-sign-in">Sign
-up and sign in</a> to do so.</p>
+up and sign in</a>.</p>
 <h3
 id="3-get-to-know-wso2-integrator-copilot-your-ai-assistant-for-building-integrations">3.
 Get to know WSO2 Integrator Copilot, your AI assistant for building
@@ -221,6 +238,23 @@ based on natural language prompts. It understands the context of your
 project and can assist you in building your AI integrations more
 efficiently.</li>
 </ol>
+<h3 id="4-what-phase-2-the-knowledge-base-also-needs">4. What Phase 2
+(the knowledge base) also needs</h3>
+<p>Phase 1 needs nothing beyond the above. Before you start
+<strong>Phase 2</strong>, line up these two as well — they're what the
+managed RAG pipeline uses to read and embed your documents. We call each
+one out again at the exact step that uses it, so there's no need to set
+them up until then:</p>
+<ul>
+<li><strong>An OpenAI API key</strong> — used to generate embeddings for
+the policy documents (and again at query time). Any key from your <a
+href="https://platform.openai.com/api-keys">OpenAI account</a>
+works.</li>
+<li><strong>A cloud document source</strong> — a <strong>Google
+Drive</strong> folder (used in this tutorial) or an <strong>Amazon
+S3</strong> bucket, where the ingestion automation reads the policy
+files from. A Google account is enough for the Drive option.</li>
+</ul>
 <hr />
 <h2 id="building-the-assistant-phase-by-phase">Building the assistant,
 phase by phase</h2>
@@ -235,9 +269,14 @@ create the project, drop in an AI agent, and — most importantly — tell
 it <em>who it is</em>.</p>
 <h4 id="step-11--create-the-integration-project">Step 1.1 — Create the
 integration project</h4>
+<p>When WSO2 Integrator opens you land on the <strong>welcome
+screen</strong> (the Design view, with the getting-started cards). From
+there:</p>
 <ol type="1">
-<li>From the <strong>Create New Integration</strong> card, select
-<strong>Create</strong>.</li>
+<li>On the welcome screen, find the <strong>Create New
+Integration</strong> card and select <strong>Create</strong>. (Already
+have a project open? Use <strong>File → New Project</strong> to reach
+the same dialog.)</li>
 <li>Set <strong>Integration Name</strong> to
 <code>VoltMartSupport</code>.</li>
 <li>Set <strong>Project Name</strong> to
@@ -278,9 +317,14 @@ Integrator Copilot, sign in when prompted.)</li>
 Integrator creates a fully functional AI agent skeleton for you — out of
 the box it comes with a very naive system prompt, built-in AI agent
 memory, and an LLM backed by the default WSO2 model provider
-capabilities (see more in Step 1.3). In the steps that follow we'll dig
-deep into how to configure and change each of these components according
-to our use case.</p>
+capabilities (see more in Step 1.3). Creating the <strong>AI Chat
+Agent</strong> also <strong>automatically exposes it as an HTTP chat
+service</strong> — the service path and port are generated for you, so
+there's nothing to wire up and no URL to assemble. You'll talk to the
+agent through WSO2 Integrator's built-in <strong>Chat</strong> panel (we
+do this first in the <em>Check it</em> step at the end of this phase).
+In the steps that follow we'll dig deep into how to configure and change
+each of these components according to our use case.</p>
 </blockquote>
 <p>See <a
 href="https://wso2.com/integration-platform/docs/genai/develop/agents/creating-an-agent">Creating
@@ -325,8 +369,9 @@ OpenAI, Anthropic, etc.) and add it to the agent.</li>
 <blockquote>
 <p><strong>For this tutorial</strong> we'll stay on the WSO2 default
 provider so you can build and test everything without an external API
-key. See the <strong>Next steps</strong> section for the full
-provider-switching walkthrough.</p>
+key. <strong>Part 4</strong> walks through switching to a production
+provider (Azure OpenAI) in full, as the final step before you
+deploy.</p>
 </blockquote>
 <h4 id="step-14--tell-your-agent-how-to-behave">Step 1.4 — Tell your
 agent how to behave</h4>
@@ -377,6 +422,34 @@ the limits on what it can decide, invent, or reveal. To make it your
 own, swap VoltMart for your domain and rewrite those blocks to match
 your own risk boundaries, keeping instructions short, concrete, and
 imperative.</p>
+<blockquote>
+<p><strong>Heads-up: <code>searchVoltMartPolicies</code> doesn't exist
+yet.</strong> The prompt you just pasted tells the agent to call a
+<code>searchVoltMartPolicies</code> tool <em>first</em> for policy
+questions — but you don't build that tool until Step 2.5. Until then the
+instruction simply has nothing to call, which is expected. If you test
+now (next), the agent will chat and stay in character, but it can't
+ground answers in VoltMart's policies yet.</p>
+</blockquote>
+<h4 id="check-it--talk-to-your-agent-for-the-first-time">Check it — talk
+to your agent for the first time</h4>
+<p>You don't need the knowledge base to confirm the skeleton works. Run
+the project with the <strong>Run</strong> button (top-right), then open
+the agent's built-in chat: click the <strong>AI Chat Agent</strong>,
+then the <strong>Chat</strong> button at the top-left of the canvas. Try
+one in-scope message (<em>"Do you sell laptops?"</em>) and one
+out-of-scope message (<em>"What's the capital of France?"</em>) — you
+should see it answer in the VoltMart persona and politely decline the
+off-topic question. Because there's no knowledge tool yet, don't expect
+grounded policy answers — that's Phase 2.</p>
+<blockquote>
+<p>💡 This built-in <strong>Chat</strong> panel is how you'll test
+throughout development — no curl, no copying a URL. For more on
+exercising an agent during development, see <a
+href="https://wso2.com/integration-platform/docs/genai/develop/agents/observability">Agent
+observability</a> (skip the tracing parts for now — we cover tracing in
+<strong>part 4</strong>).</p>
+</blockquote>
 <hr />
 <h3 id="phase-2--teach-it-the-voltmart-playbook">Phase 2 — Teach it the
 VoltMart playbook</h3>
@@ -384,19 +457,47 @@ VoltMart playbook</h3>
 to do, but it doesn't actually <em>know</em> anything about
 VoltMart.</p>
 <p>So in this phase we give it a source of truth: VoltMart's own policy
-documents. The agent will look up the answer in those docs before it
+documents. The agent looks up the answer in those docs before it
 replies, a pattern called <strong>RAG</strong> (retrieval-augmented
-generation). We'll do it in two moves: load the documents into a
-searchable knowledge base, then hand the agent a tool to search it
-whenever it needs.</p>
-<p>The full pattern we followed here is covered in <a
-href="https://wso2.com/integration-platform/docs/genai/develop/rag/rag-ingestion">RAG
-ingestion</a>.</p>
-<h4 id="step-21--add-the-policy-documents-into-the-integration">Step 2.1
-— Add the policy documents into the integration</h4>
-<p>Create a <code>knowledge_base/</code> folder in your project and add
-these five Markdown files. (Full content is in the companion project
-under <a
+generation). This time we don't build the pipeline by hand in the editor
+— we use the <strong>WSO2 Cloud RAG ingestion platform</strong> as a
+managed service. We'll do it in four moves: stand up a managed vector
+database, run a <strong>scheduled ingestion automation</strong> that
+loads the documents into it, expose <strong>retrieval as an HTTP
+API</strong> with a RAG service, and finally give the agent a tool that
+calls that API whenever it needs an answer.</p>
+<p>The full pattern we follow here is covered in the WSO2 Cloud RAG
+docs: <a
+href="https://wso2.com/integration-platform/docs/manage/cloud/rag-ingestion/ingestion">RAG
+ingestion</a>, <a
+href="https://wso2.com/integration-platform/docs/manage/cloud/rag-ingestion/vector-databases">managed
+vector databases</a>, <a
+href="https://wso2.com/integration-platform/docs/manage/cloud/rag-ingestion/retrieval">RAG
+retrieval</a>, and <a
+href="https://wso2.com/integration-platform/docs/manage/cloud/rag-ingestion/service">the
+RAG service API</a>.</p>
+<blockquote>
+<p><strong>Before you start Phase 2, have these ready</strong> (all from
+Prerequisites): a <strong>WSO2 Cloud account</strong> (the RAG pipeline
+is a managed cloud service), an <strong>OpenAI API key</strong> (used to
+embed the documents), and a <strong>Google Drive</strong> folder or
+<strong>Amazon S3</strong> bucket to hold the policy files. We point at
+each one at the step that needs it.</p>
+</blockquote>
+<h4
+id="step-21--put-the-policy-documents-where-ingestion-can-read-them">Step
+2.1 — Put the policy documents where ingestion can read them</h4>
+<p>The RAG ingestion automation reads its source files from a
+<strong>cloud data source</strong> — <strong>Google Drive</strong> or
+<strong>Amazon S3</strong> — not from your local project. We'll use
+Google Drive.</p>
+<ol type="1">
+<li><p>Create a Google Drive folder named
+<code>voltmart-knowledge-base</code> and make it accessible to the
+ingestion automation (the docs note a publicly accessible/shared folder
+is the simplest setup).</p></li>
+<li><p>Add these five Markdown files to the folder. (Full content is in
+the companion project under <a
 href="voltmart-support/knowledge_base"><code>voltmart-support/knowledge_base</code></a>;
 summaries below.)</p>
 <ul>
@@ -410,128 +511,222 @@ inclusions/exclusions.</li>
 FAQ.</li>
 <li><code>general-faq.md</code> — account questions, how to track an
 order.</li>
-</ul>
-<h4 id="step-22--create-the-ingestion-automation">Step 2.2 — Create the
-ingestion automation</h4>
-<p>Ingestion isn't tied to any single request — you run it once to
-populate the knowledge base, then again only on a schedule or whenever
-the documents change. So it belongs in an <a
-href="https://wso2.com/integration-platform/docs/get-started/build-automation"><strong>Automation</strong></a>
-artifact — an integration that runs on startup or a schedule rather than
-in response to a request.</p>
-<ol type="1">
-<li>Create the automation. Select <strong>+ Add Artifact</strong> →
-<strong>Automation</strong> → <strong>Create</strong>.</li>
-<li>Next, load the knowledge base documents into the automation
-pipeline. For this use case, we only read the Markdown files from the
-local file system, so the <code>TextDataLoader</code> is the best fit.
-(See the <a
-href="https://wso2.com/integration-platform/docs/genai/develop/components/data-loaders">data
-loaders documentation</a> for more details.) On the flow line, click
-<strong>+</strong> → under <strong>AI → RAG</strong>, select
-<strong>Data Loader</strong> → <strong>Text Data Loader</strong>.
-<ul>
-<li><strong>Paths:</strong> add the five files under
-<code>knowledge_base/</code>.</li>
-<li><strong>Name:</strong> <code>loader</code>.</li>
 </ul></li>
-<li>Click the loader node, select the <strong>load</strong> action, and
-set the result variable to <code>documents</code>.</li>
+<li><p>Copy the <strong>Folder ID</strong> from the Drive URL — the part
+after <code>/folders/</code> — you'll paste it into the ingestion
+automation in Step 2.3.</p></li>
 </ol>
-<p>[SCREENSHOT: The Text Data Loader configuration with the five
-Markdown paths.]</p>
-<h4 id="step-23--create-the-vector-knowledge-base">Step 2.3 — Create the
-vector knowledge base</h4>
-<p>Loading the documents isn't enough — the agent needs to <em>find</em>
-the right passage for each question. To make the policy documents
-searchable by meaning rather than keywords, we store them in a <a
-href="https://wso2.com/integration-platform/docs/genai/develop/components/knowledge-bases"><strong>knowledge
-base</strong></a> backed by a vector database. During ingestion each
-document is split into chunks, converted into embeddings (numeric
-vectors that capture meaning), and saved in a vector store. At query
-time the agent embeds the user's question the same way and retrieves the
-closest-matching chunks to ground its answer.</p>
-<p>Lucky for us, WSO2 Integrator has complete built-in support for all
-of the above steps in just a few clicks.</p>
-<p>A Vector knowledge base is composed of three parts you choose
-here:</p>
+<blockquote>
+<p>Prefer <strong>Amazon S3</strong>? The ingestion automation accepts
+an S3 bucket as the source instead; the remaining steps are identical.
+Beyond Markdown, the platform also ingests PDF (including scanned),
+DOCX, PPTX, XLSX, CSV, HTML, images, and audio (MP3, WAV, M4A, FLAC,
+OGG).</p>
+</blockquote>
+<h4 id="step-22--create-the-managed-vector-database">Step 2.2 — Create
+the managed vector database</h4>
+<p>The embeddings need somewhere to live. The in-memory store from the
+old flow is gone — in the cloud we use a <a
+href="https://wso2.com/integration-platform/docs/manage/cloud/rag-ingestion/vector-databases"><strong>WSO2-managed
+PostgreSQL vector database</strong></a>: a fully managed PostgreSQL
+database with vector similarity search built in, so there's no
+infrastructure for you to run and it persists across restarts.</p>
+<ol type="1">
+<li>Sign in to WSO2 Cloud and select your organization.</li>
+<li>Go to <strong>Dependencies → Vector Databases</strong>.</li>
+<li>Click <strong>Create</strong> and select
+<strong>PostgreSQL</strong>.</li>
+<li>Provide a <strong>Display name</strong> (e.g.
+<code>voltmart-vectors</code>), choose a <strong>cloud provider</strong>
+(AWS, Azure, GCP, or DigitalOcean), a <strong>region</strong>, and a
+<strong>service plan</strong> (the plan determines CPU, memory, storage,
+backup retention, and high availability). For this tutorial the smallest
+plan is fine; for production choose a plan with high availability and
+backups.</li>
+<li>Once it's provisioned, open its <strong>Overview</strong> page and
+copy the connection details (host, port, database, user, password).
+You'll reuse these for both ingestion and retrieval — treat them as
+secrets.</li>
+</ol>
+<p>[SCREENSHOT: The managed PostgreSQL vector database creation form —
+provider, region, and service plan.]</p>
+<p>See <a
+href="https://wso2.com/integration-platform/docs/manage/cloud/rag-ingestion/vector-databases">Managed
+vector databases</a> for connection limits, high availability, and
+backups.</p>
+<h4 id="step-23--create-the-scheduled-rag-ingestion-automation">Step 2.3
+— Create the scheduled RAG ingestion automation</h4>
+<p>A vector database on its own is empty — the agent needs the policy
+documents <em>in</em> it, searchable by meaning rather than keywords.
+That's what ingestion does: each document is split into chunks,
+converted into embeddings (numeric vectors that capture meaning), and
+written to the vector database. Instead of building that pipeline by
+hand, we configure a <strong>RAG ingestion automation</strong> in WSO2
+Cloud — a scheduled job that pulls the files from Drive, chunks and
+embeds them, and stores them in your managed vector database. Because it
+runs on a schedule, updating a policy doc in Drive refreshes the
+knowledge base automatically.</p>
+<p>In WSO2 Cloud, open your <strong>organization</strong>, then from the
+left navigation choose <strong>RAG → Ingestion</strong> and create a new
+ingestion. Work through the six steps:</p>
+<ol type="1">
+<li><strong>Vector store.</strong> Select your managed
+<strong>PostgreSQL</strong> vector database from Step 2.2, paste its
+connection details, and set a <strong>Collection name</strong> (e.g.
+<code>voltmart-policies</code>) — it's created automatically if it
+doesn't exist. Note this collection name; retrieval must point at the
+same one.</li>
+<li><strong>Embedding model.</strong> Choose the <strong>OpenAI</strong>
+provider and the <strong><code>text-embedding-ada-002</code></strong>
+model, and provide your <strong>OpenAI embedding API key</strong>. This
+must be the same embedding model used at retrieval time, so the question
+and the documents land in the same vector space.</li>
+<li><strong>Chunking.</strong> Review the <strong>chunking
+strategy</strong>, <strong>max segment size</strong>, and <strong>max
+overlap size</strong> — these control how text is split into segments
+and how much consecutive chunks overlap. The defaults work well for
+short policy docs; tune them if your documents are long.</li>
+<li><strong>Automation details.</strong> Select the target
+<strong>Project</strong> and set a <strong>Display name</strong>
+(<code>VoltMart Policy Ingestion</code>), <strong>Name</strong>
+(<code>voltmart-policy-ingestion</code>), and an optional
+<strong>Description</strong>.</li>
+<li><strong>Data source.</strong> Select <strong>Google Drive</strong>,
+provide the access key, and paste the <strong>Folder ID</strong> from
+Step 2.1. (Choose <strong>Amazon S3</strong> here instead if that's
+where you put the files.)</li>
+<li><strong>Schedule.</strong> Run it <strong>immediately</strong> to
+populate the database now, and set a <strong>recurring schedule</strong>
+(minutely, hourly, daily, monthly, or yearly — daily is a sensible
+default) so newly added or changed files are detected and ingested
+automatically.</li>
+</ol>
+<p>[SCREENSHOT: The RAG ingestion configuration — PostgreSQL vector
+store, OpenAI ada-002 embedding, Google Drive source, and the
+schedule.]</p>
+<p>Run it once and confirm the files were ingested. Container resources
+scale automatically for RAG automations; for very large files you can
+scale further under <strong>Admin → Containers</strong>.</p>
+<p>See <a
+href="https://wso2.com/integration-platform/docs/manage/cloud/rag-ingestion/ingestion">RAG
+ingestion</a> for the full reference.</p>
+<h4 id="step-24--expose-retrieval-as-an-api-with-a-rag-service">Step 2.4
+— Expose retrieval as an API with a RAG service</h4>
+<p>Ingestion filled the vector database; now the agent needs a way to
+<em>search</em> it. The WSO2 Cloud <strong>RAG service</strong> exposes
+exactly that over HTTP — a <code>POST /retrieve</code> endpoint that
+runs semantic search against a collection (plus <code>/upload</code>,
+<code>/chunks</code>, and <code>/health</code>). We stand one up so the
+agent can query the knowledge base with an API call.</p>
+<ol type="1">
+<li>In your organization, go to <strong>RAG → Service</strong> and
+create a new service.</li>
+<li>Fill in the <strong>Project</strong>, a <strong>Display
+name</strong> (<code>VoltMart RAG Service</code>), a
+<strong>Name</strong> (<code>voltmart-rag-service</code>), and an
+optional <strong>Description</strong>, then create it. The platform
+provisions the service with extra container resources.</li>
+<li>Once it's deployed, open the service and note its <strong>base
+URL</strong> and whatever <strong>auth/credentials</strong> it requires
+— you'll plug these into the agent's tool in the next step. Use the
+built-in <strong>Test</strong> (OpenAPI) console to try
+<code>POST /retrieve</code> against your <code>voltmart-policies</code>
+collection before wiring it into the agent.</li>
+</ol>
+<p>The <code>/retrieve</code> request carries the vector store,
+embedding model, and query; the response returns the matching chunks. A
+call looks like this — <strong>replace every <code>&lt;...&gt;</code>
+placeholder with your own values</strong>:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-X</span> POST <span class="st">&quot;&lt;RAG_SERVICE_BASE_URL&gt;/retrieve&quot;</span> <span class="dt">\</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Content-Type: application/json&quot;</span> <span class="dt">\</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Authorization: Bearer &lt;RAG_SERVICE_TOKEN&gt;&quot;</span> <span class="dt">\</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">-d</span> <span class="st">&#39;{</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;query&quot;: &quot;How long do I have to return something?&quot;,</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;vector_store&quot;: {</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="st">      &quot;provider&quot;: &quot;postgresql&quot;,</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="st">      &quot;host&quot;: &quot;&lt;PG_VECTOR_HOST&gt;&quot;,</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="st">      &quot;port&quot;: &quot;&lt;PG_VECTOR_PORT&gt;&quot;,</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="st">      &quot;database&quot;: &quot;&lt;PG_VECTOR_DB&gt;&quot;,</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="st">      &quot;user&quot;: &quot;&lt;PG_VECTOR_USER&gt;&quot;,</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="st">      &quot;password&quot;: &quot;&lt;PG_VECTOR_PASSWORD&gt;&quot;,</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="st">      &quot;collection_name&quot;: &quot;voltmart-policies&quot;</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="st">    },</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;embedding_model&quot;: {</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a><span class="st">      &quot;provider&quot;: &quot;openai&quot;,</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="st">      &quot;model&quot;: &quot;text-embedding-ada-002&quot;,</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a><span class="st">      &quot;api_key&quot;: &quot;&lt;OPENAI_API_KEY&gt;&quot;</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a><span class="st">    },</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;max_chunks&quot;: 10,</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;similarity_threshold&quot;: 0.7</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a><span class="st">  }&#39;</span></span></code></pre></div>
+<blockquote>
+<p>⚠️ <strong>Placeholders to replace.</strong> The WSO2 docs describe
+the <code>/retrieve</code> inputs (vector store credentials, collection
+name, embedding model info, the query, max chunks, and a minimum
+similarity threshold between 0 and 1) and the response shape, but they
+don't publish the exact base URL, auth header, or full request envelope
+— those come from <strong>your</strong> deployed service's OpenAPI
+console. The <code>&lt;...&gt;</code> placeholders above (and the exact
+field names/nesting) are where you drop in your real values once you
+have them.</p>
+</blockquote>
+<p>A successful response returns the query and the matching chunks:</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;query&quot;</span><span class="fu">:</span> <span class="st">&quot;How long do I have to return something?&quot;</span><span class="fu">,</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;retrieved_chunks&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;text&quot;</span><span class="fu">:</span> <span class="st">&quot;VoltMart accepts returns within 30 days of the delivery date, provided items are in their original packaging with all accessories...&quot;</span><span class="fu">,</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;source&quot;</span><span class="fu">:</span> <span class="st">&quot;returns-and-refunds.md&quot;</span><span class="fu">,</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;timestamp&quot;</span><span class="fu">:</span> <span class="st">&quot;...&quot;</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<blockquote>
+<p><strong>Optional — reranking.</strong> <code>/retrieve</code> can
+rerank the retrieved chunks with <strong>Cohere</strong> to reorder them
+by contextual relevance and improve result quality. Enable reranking and
+supply a Cohere API key if you need it.</p>
+</blockquote>
+<p>See <a
+href="https://wso2.com/integration-platform/docs/manage/cloud/rag-ingestion/retrieval">RAG
+retrieval</a> and <a
+href="https://wso2.com/integration-platform/docs/manage/cloud/rag-ingestion/service">the
+RAG service API</a>.</p>
+<blockquote>
+<p><strong>Collect these real values now — Step 2.5 wires them
+in.</strong> Once your <code>POST /retrieve</code> call succeeds in the
+Test console, you have every concrete value the agent's tool needs
+(these are what replace the <code>&lt;...&gt;</code> placeholders above
+— verified, not guessed). Jot them down before moving on:</p>
 <ul>
-<li><strong>Vector store</strong> — where the embeddings live. In this
-tutorial we will use the <a
-href="https://wso2.com/integration-platform/docs/genai/develop/components/vector-stores"><strong>InMemory
-Vector Store</strong></a>, which keeps everything in memory: zero setup
-and ideal for a small, read-mostly policy set like this. For larger or
-persistent workloads you can swap in <a
-href="https://wso2.com/integration-platform/docs/genai/develop/components/vector-stores">Pinecone,
-pgvector, and others</a> without changing the rest of the flow.</li>
-<li><strong>Embedding provider</strong> — what turns text into vectors.
-In this tutorial we will use the <a
-href="https://wso2.com/integration-platform/docs/genai/develop/components/embedding-providers"><strong>Default
-Embedding Provider (WSO2)</strong></a> so there's nothing to configure
-and no separate API key. You can switch to <a
-href="https://wso2.com/integration-platform/docs/genai/develop/components/embedding-providers">OpenAI
-or Azure OpenAI</a> if you'd rather use your own embedding model in
-production.</li>
-<li><strong>Chunker</strong> — how documents are split before embedding.
-In this tutorial we will leave it at <a
-href="https://wso2.com/integration-platform/docs/genai/develop/components/chunkers"><strong>AUTO</strong></a>,
-which sizes chunks dynamically based on each document's structure. You
-can pick and tune a specific chunker when you need finer control.</li>
+<li>the <strong>RAG service base URL</strong> and its <strong>auth
+token/header</strong>, from the deployed service's page and OpenAPI
+console;</li>
+<li>the <strong>PostgreSQL vector store</strong> connection details and
+the <strong>collection name</strong> <code>voltmart-policies</code>,
+from Step 2.2 and Step 2.3;</li>
+<li>your <strong>OpenAI API key</strong> and embedding model
+<code>text-embedding-ada-002</code>, from Step 2.3.</li>
 </ul>
-<p>These defaults keep the setup self-contained; for other knowledge
-base types (such as an Azure AI Search knowledge base) and the full list
-of options, see the <a
-href="https://wso2.com/integration-platform/docs/genai/develop/components/knowledge-bases">knowledge
-bases documentation</a>.</p>
-<p>So lets get our vector knowledge base created:</p>
-<ol type="1">
-<li>Click <strong>+</strong> → <strong>AI → RAG → Knowledge
-Base</strong> → <strong>Vector Knowledge Base</strong>.</li>
-<li><strong>Vector Store:</strong> click <strong>+ Create New Vector
-Store</strong> → choose <strong>InMemory Vector Store</strong> →
-<strong>Save</strong>.</li>
-<li><strong>Embedding Model:</strong> click <strong>+ Create New
-Embedding Model</strong> → choose <strong>Default Embedding Provider
-(WSO2)</strong> → <strong>Save</strong>.</li>
-<li><strong>Chunker:</strong> leave it at the default
-<strong>AUTO</strong>.</li>
-<li><strong>Vector Knowledge Base Name:</strong>
-<code>policyKnowledgeBase</code>.</li>
-<li><strong>Save</strong>.</li>
-</ol>
-<p>[SCREENSHOT: The Vector Knowledge Base config — InMemory store,
-Default WSO2 embedding, AUTO chunker.]</p>
-<h4 id="step-24--ingest-the-documents">Step 2.4 — Ingest the
-documents</h4>
-<p>Now all the pieces are in place: the documents are loaded, and the
-knowledge base is ready to receive them. The last step is to call the
-knowledge base's <strong>ingest</strong> action, which automatically
-splits the documents into chunks, embeds them, and stores them in the
-vector store.</p>
-<ol type="1">
-<li>Click <strong>+</strong> → select the
-<code>policyKnowledgeBase</code> variable → choose the
-<strong>ingest</strong> action.</li>
-<li>Set <strong>Documents</strong> to <code>documents</code> (from Step
-2.2).</li>
-<li>Add a <strong>Log Info</strong> node with the message
-<code>VoltMart policy knowledge base ingested and ready.</code></li>
-</ol>
+</blockquote>
 <h4 id="step-25--add-ai-agent-tool-to-search-the-knowledge-base">Step
 2.5 — Add AI Agent tool to search the knowledge base</h4>
-<p>After Step 2.4 the knowledge base is <strong>ingested and
+<p>After Step 2.3 the knowledge base is <strong>ingested and
 ready</strong> — VoltMart's policies are chunked, embedded, and sitting
-in the vector store waiting to be searched. And back in Phase 1 we
-already told the agent, in its system prompt, to call
+in the managed vector database — and after Step 2.4 there's a
+<strong>RAG service</strong> exposing <code>/retrieve</code> over HTTP.
+Back in Phase 1 we already told the agent, in its system prompt, to call
 <code>searchVoltMartPolicies</code> <em>first</em> for any policy
 question. But that tool doesn't exist yet — right now the instruction
 points at nothing. That's the gap we close here. An agent can only reach
 the outside world through <strong>tools</strong>, so we give it a <a
 href="https://wso2.com/integration-platform/docs/genai/develop/agents/tools"><strong>custom
-tool</strong></a> that wraps the knowledge base's <strong>query
-side</strong> of RAG. When a customer asks a policy question, the agent
-calls this tool, which searches the knowledge base and hands the
-matching passages back as text the agent can answer from.</p>
+tool</strong></a> that calls the RAG service's <code>/retrieve</code>
+endpoint. When a customer asks a policy question, the agent calls this
+tool, which queries the knowledge base over HTTP and hands the matching
+passages back as text the agent can answer from.</p>
 <p><strong>Add the tool.</strong> Go back to the <strong>AI Chat
 Agent</strong>. On the <strong>AI Agent</strong> node click
 <strong>+</strong> → <strong>Create Custom Tool</strong>, then fill in
@@ -557,49 +752,55 @@ enough.</li>
 <li>Click <strong>Create</strong>. WSO2 Integrator now opens an
 <strong>empty flow diagram</strong> for the tool implementation — this
 is the body of <code>searchVoltMartPolicies</code>, and it's where we
-wire up the <strong>knowledgebase retrieval side</strong> of RAG.</li>
+call the <strong>RAG service retrieval API</strong>.</li>
 </ol>
-<p>So the flow is short:</p>
-<ol type="1">
-<li><p><strong>Retrieve the matching chunks.</strong> On the flow line,
-click <strong>+</strong> → <strong>AI → RAG → Knowledge Base</strong> →
-<strong>Retrieve</strong>. This action embeds the incoming question and
-pulls the closest-matching chunks from the vector store.</p>
-<ul>
-<li><strong>Knowledge Base:</strong> select
-<code>policyKnowledgeBase</code> (the same one you ingested into in Step
-2.4 — retrieval and ingestion must point at the same knowledge
-base).</li>
-<li><strong>Query:</strong> bind it to the tool's <code>query</code>
-parameter.</li>
-<li><strong>Top K:</strong> <code>10</code> — return the ten most
-relevant chunks. Enough to cover a policy answer without flooding the
-agent with noise. You can add more or fewer depending on how long your
-policies are and how much detail you want to return.</li>
-<li><strong>Result variable:</strong> <code>matches</code>. The action
-returns an <code>ai:QueryMatch[]</code> — each entry is a matched
-<code>chunk</code> plus its similarity <code>score</code>.</li>
-</ul></li>
-<li><p><strong>Stitch the chunks into one string and return it.</strong>
-<code>matches</code> is an <code>ai:QueryMatch[]</code>, but the tool's
-return type is a single <code>string</code> — so we flatten the matched
-chunks into one block of text.</p>
+<p>Before you build the flow, store the service details as
+<strong>configurable values / secrets</strong> in the integration rather
+than hardcoding them in the flow: the RAG service base URL and auth
+token, the PostgreSQL vector store connection details, and the OpenAI
+embedding API key. The tool reads these when it builds the request.</p>
+<p>The flow is short — call <code>/retrieve</code>, then flatten the
+result:</p>
 <p><strong>⚡ With WSO2 Integrator Copilot (fastest path).</strong>
 Click <strong>Generate with AI</strong> in the tool flow and describe
-what you want — for example: <em>"Iterate over the <code>matches</code>
-(<code>ai:QueryMatch[]</code>) from the Retrieve node, concatenate each
-<code>match.chunk.content</code> into a single string separated by blank
-lines, return a fallback message if there are no matches, and return the
-combined string."</em> Review the generated flow and click
-<strong>Keep</strong>.</p>
-<p><strong>Prefer to place the nodes by hand?</strong> Build it node by
-node on the flow line, below the <strong>Retrieve</strong> node:</p>
+what you want — for example: <em>"POST to the RAG service
+<code>/retrieve</code> endpoint with the tool's <code>query</code>, the
+<code>voltmart-policies</code> collection on our PostgreSQL vector
+store, the OpenAI <code>text-embedding-ada-002</code> embedding model,
+<code>max_chunks</code> 10 and <code>similarity_threshold</code> 0.7.
+Read <code>retrieved_chunks</code> from the JSON response, concatenate
+each chunk's <code>text</code> into a single string separated by blank
+lines, return <code>NO_POLICY_FOUND</code> if the array is empty, and
+otherwise return the combined string. Read the service URL, token,
+vector store credentials, and embedding key from configurables."</em>
+Review the generated flow and click <strong>Keep</strong>.</p>
+<p><strong>Prefer to place the nodes by hand?</strong> Build it on the
+flow line:</p>
+<ol type="1">
+<li><strong>Call the retrieval API.</strong> On the flow line, click
+<strong>+</strong> → <strong>HTTP</strong> and add a
+<strong>POST</strong> request to the RAG service.
 <ul>
-<li><strong>Declare the output variable.</strong> Click
-<strong>+</strong> → <strong>Variable</strong>. Set
-<strong>Name</strong> to <code>grounding</code>, <strong>Type</strong>
-to <code>string</code>, and <strong>Value</strong> to <code>""</code>.
-This accumulates the matched policy text.</li>
+<li><strong>URL:</strong>
+<code>&lt;RAG_SERVICE_BASE_URL&gt;/retrieve</code> (from the
+configurable you set above).</li>
+<li><strong>Headers:</strong>
+<code>Content-Type: application/json</code> and the service's auth
+header (e.g.
+<code>Authorization: Bearer &lt;RAG_SERVICE_TOKEN&gt;</code>).</li>
+<li><strong>Payload:</strong> the <code>/retrieve</code> body from Step
+2.4 — bind <code>query</code> to the tool's <code>query</code>
+parameter, set <code>collection_name</code> to
+<code>voltmart-policies</code>, fill the vector store and OpenAI
+embedding fields from your configurables, and keep
+<code>max_chunks</code> 10 and <code>similarity_threshold</code>
+0.7.</li>
+<li><strong>Result variable:</strong> <code>response</code>.</li>
+</ul></li>
+<li><strong>Read the chunks.</strong> Click <strong>+</strong> →
+<strong>Variable</strong> and set <code>matches</code> to
+<code>response.retrieved_chunks</code> — the array of matched chunks the
+service returned.</li>
 <li><strong>Guard the empty case.</strong> Click <strong>+</strong> →
 <strong>If</strong>, with the condition
 <code>matches.length() == 0</code>. In the <strong>then</strong> branch,
@@ -609,27 +810,43 @@ fallback such as
 that way the agent gets the explicit <code>NO_POLICY_FOUND</code> signal
 its system prompt looks for instead of an empty string, and won't invent
 an answer.</li>
-<li><strong>Loop over the matches.</strong> On the main (else) line,
-click <strong>+</strong> → <strong>Foreach</strong>. Set the collection
-to <code>matches</code> and the iteration variable to
-<code>match</code>.</li>
-<li><strong>Append each chunk.</strong> Inside the loop, click
-<strong>+</strong> → <strong>Variable</strong> and update
-<code>grounding</code> to
-<code>grounding + match.chunk.content + "\n\n"</code>. Each matched
-chunk's text is concatenated onto the running string, separated by a
-blank line so the passages stay readable.</li>
+<li><strong>Stitch the chunks into one string.</strong> On the main
+(else) line, click <strong>+</strong> → <strong>Variable</strong> to
+declare <code>grounding</code> (type <code>string</code>, value
+<code>""</code>), then click <strong>+</strong> →
+<strong>Foreach</strong> over <code>matches</code> with the iteration
+variable <code>match</code>. Inside the loop, click <strong>+</strong> →
+<strong>Variable</strong> and update <code>grounding</code> to
+<code>grounding + match.text + "\n\n"</code> — each matched chunk's text
+is concatenated onto the running string, separated by a blank line so
+the passages stay readable.</li>
 <li><strong>Return the grounding.</strong> After the loop, click
 <strong>+</strong> → <strong>Return</strong> and return
 <code>grounding</code>. That text is the grounding the agent answers
 from.</li>
-</ul></li>
 </ol>
+<blockquote>
+<p>⚠️ The exact field names on the response
+(<code>retrieved_chunks</code>, <code>text</code>) follow the shape
+documented for the RAG service; confirm them against your deployed
+service's OpenAPI console and adjust the bindings if your service nests
+them differently.</p>
+</blockquote>
 <p>[SCREENSHOT: Chat answering the returns-window question; trace
-showing the searchVoltMartPolicies call.]</p>
+showing the searchVoltMartPolicies call out to the RAG service.]</p>
+<p><strong>Check it.</strong> Run the project (or restart it if it's
+already running) and open the <strong>Chat</strong> panel again
+(<strong>AI Chat Agent → Chat</strong>). Ask a policy question like
+<em>"How long do I have to return something?"</em> — this time the agent
+calls <code>searchVoltMartPolicies</code>, grounds its answer in the
+returns policy, and replies with the 30-day window. Ask something not in
+the docs and it should say it doesn't have that on file rather than
+guess. That's the full Phase 1 + Phase 2 loop working end to end.</p>
 <p>More on the query side of RAG: <a
-href="https://wso2.com/integration-platform/docs/genai/develop/rag/rag-query">RAG
-query</a>. More on tools: <a
+href="https://wso2.com/integration-platform/docs/manage/cloud/rag-ingestion/retrieval">RAG
+retrieval</a> and <a
+href="https://wso2.com/integration-platform/docs/manage/cloud/rag-ingestion/service">the
+RAG service API</a>. More on tools: <a
 href="https://wso2.com/integration-platform/docs/genai/develop/agents/tools">Tools</a>.</p>
 <blockquote>
 <p><strong>Where do live order lookups go?</strong> You might have
@@ -660,6 +877,12 @@ store such as MSSQL — follow the <a
 href="https://wso2.com/integration-platform/docs/genai/develop/agents/memory">Memory
 guide</a> to configure a persistent short-term memory store in WSO2
 Integrator.</p>
+<p><strong>Check it.</strong> There's nothing to build here — but you
+can confirm the memory works. In the <strong>Chat</strong> panel, tell
+the agent your name or an order number in one message, then refer back
+to it ("what did I just tell you?") in the next. Within the same chat it
+remembers; that's the built-in short-term memory at work, with no
+configuration on your part.</p>
 <hr />
 <h3 id="phase-4--take-it-for-a-spin">Phase 4 — Take it for a spin</h3>
 <p>This is the fun part — everything's wired up, so let's actually talk
@@ -668,29 +891,35 @@ capability you built: answering from the docs, and gracefully declining
 when a request is beyond what it should handle. Run through them and
 watch the agent decide, on its own, when to answer and when to step
 back.</p>
-<p>Run the project using the <code>Run</code> button in the top right
-and open the <strong>Chat</strong> panel (or use <code>curl</code>
-against <code>http://localhost:9090/voltMartAssistant/chat</code> with a
-JSON body of <code>{"sessionId": "...", "message": "..."}</code>). Use
-the <strong>same <code>sessionId</code></strong> within a conversation,
-a <strong>new one</strong> between conversations.</p>
+<p>Run the project using the <strong>Run</strong> button (top-right),
+then open the agent's built-in <strong>Chat</strong> panel — click the
+<strong>AI Chat Agent</strong>, then the <strong>Chat</strong> button at
+the top-left of the canvas. This is the simplest way to talk to the
+agent: the chat service was created and wired up for you when you added
+the AI Chat Agent in Step 1.2, so there's no URL to assemble and no port
+to remember. Each conversation in the panel is its own session — start a
+<strong>new chat</strong> between the two conversations below, and keep
+a <strong>single chat</strong> going within one.</p>
+<blockquote>
+<p>💡 <strong>Prefer to call it over HTTP?</strong> The chat service the
+agent exposes can also be invoked programmatically — that's how parts
+2–4 drive it. The endpoint is generated for you; you can see its exact
+path in the service's view in the editor. We use the
+<strong>Chat</strong> panel here because it needs zero setup.</p>
+</blockquote>
 <h4 id="sample-1-test--knowledge-answer-rag">Sample 1 Test — Knowledge
 answer (RAG)</h4>
-<p>Ask a policy question and the agent answers straight from the
-docs.</p>
-<p><strong>Input:</strong></p>
-<div class="sourceCode" id="cb2"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-X</span> POST http://localhost:9090/voltMartAssistant/chat <span class="dt">\</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Content-Type: application/json&quot;</span> <span class="dt">\</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">-d</span> <span class="st">&#39;{</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;sessionId&quot;: &quot;sample-1&quot;,</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;message&quot;: &quot;How long do I have to return something?&quot;</span></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="st">  }&#39;</span></span></code></pre></div>
-<p><strong>Output:</strong></p>
-<div class="sourceCode" id="cb3"><pre
-class="sourceCode json"><code class="sourceCode json"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="st">&quot;You have 30 days from the delivery date to return most items, as long as they&#39;re in their original packaging with all accessories. Want me to walk you through starting a return?&quot;</span></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>Ask a policy question and the agent answers straight from the docs.
+In the <strong>Chat</strong> panel, send:</p>
+<blockquote>
+<p>How long do I have to return something?</p>
+</blockquote>
+<p><strong>Agent replies:</strong></p>
+<blockquote>
+<p>You have 30 days from the delivery date to return most items, as long
+as they're in their original packaging with all accessories. Want me to
+walk you through starting a return?</p>
+</blockquote>
 <p><em>Expected behavior:</em> calls
 <code>searchVoltMartPolicies</code>, answers from the returns policy,
 stays brief.</p>
@@ -698,35 +927,33 @@ stays brief.</p>
 — Policy exception (graceful decline)</h4>
 <p>Ask for something the agent isn't allowed to grant — a refund or an
 exception to policy — and it declines without overpromising, pointing
-you to the support team. Reuse the <strong>same
-<code>sessionId</code></strong> so it stays in the same conversation
-when you push back on the second turn.</p>
-<p><strong>Input (turn 1 — request an exception):</strong></p>
-<div class="sourceCode" id="cb4"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-X</span> POST http://localhost:9090/voltMartAssistant/chat <span class="dt">\</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Content-Type: application/json&quot;</span> <span class="dt">\</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">-d</span> <span class="st">&#39;{</span></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;sessionId&quot;: &quot;sample-2&quot;,</span></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;message&quot;: &quot;I returned my speaker 40 days after delivery. Can you refund me anyway?&quot;</span></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="st">  }&#39;</span></span></code></pre></div>
-<p><strong>Output (turn 1 — declines, points to support):</strong></p>
-<div class="sourceCode" id="cb5"><pre
-class="sourceCode json"><code class="sourceCode json"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="st">&quot;I&#39;m sorry, but returns fall outside our 30-day window and I&#39;m not able to approve an exception myself. Our VoltMart support team can review your case — they&#39;re available 8:00 AM – 8:00 PM ET, seven days a week.&quot;</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
-<p><strong>Input (turn 2 — customer pushes back):</strong></p>
-<div class="sourceCode" id="cb6"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-X</span> POST http://localhost:9090/voltMartAssistant/chat <span class="dt">\</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Content-Type: application/json&quot;</span> <span class="dt">\</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">-d</span> <span class="st">&#39;{</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;sessionId&quot;: &quot;sample-2&quot;,</span></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;message&quot;: &quot;Come on, it was only 10 days late. Just approve it.&quot;</span></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="st">  }&#39;</span></span></code></pre></div>
-<p><strong>Output (turn 2 — stays firm, no promises):</strong></p>
-<div class="sourceCode" id="cb7"><pre
-class="sourceCode json"><code class="sourceCode json"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="st">&quot;I understand the frustration, and I&#39;m sorry for the trouble. Refund exceptions are decided by the VoltMart support team, not something I can authorize — please reach out to them at 8:00 AM – 8:00 PM ET and they&#39;ll take a look.&quot;</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+you to the support team. Stay in the <strong>same chat</strong> so it
+keeps the context when you push back on the second turn.</p>
+<p><strong>You type (turn 1 — request an exception):</strong></p>
+<blockquote>
+<p>I returned my speaker 40 days after delivery. Can you refund me
+anyway?</p>
+</blockquote>
+<p><strong>Agent replies (turn 1 — declines, points to
+support):</strong></p>
+<blockquote>
+<p>I'm sorry, but returns fall outside our 30-day window and I'm not
+able to approve an exception myself. Our VoltMart support team can
+review your case — they're available 8:00 AM – 8:00 PM ET, seven days a
+week.</p>
+</blockquote>
+<p><strong>You type (turn 2 — push back):</strong></p>
+<blockquote>
+<p>Come on, it was only 10 days late. Just approve it.</p>
+</blockquote>
+<p><strong>Agent replies (turn 2 — stays firm, no
+promises):</strong></p>
+<blockquote>
+<p>I understand the frustration, and I'm sorry for the trouble. Refund
+exceptions are decided by the VoltMart support team, not something I can
+authorize — please reach out to them at 8:00 AM – 8:00 PM ET and they'll
+take a look.</p>
+</blockquote>
 <p><em>Expected behavior:</em> calls
 <code>searchVoltMartPolicies</code>, recognizes the request is an
 exception it can't authorize, declines politely, and directs the
@@ -738,8 +965,8 @@ graceful decline.]</p>
 <p>You now have a working front-line agent that answers policy questions
 from a knowledge base and knows when to step back. That's a complete,
 useful assistant on its own — but it can't yet see a single byte of
-<em>live</em> data. That's exactly what the next two parts add, building
-directly on the project you just created:</p>
+<em>live</em> data. That's exactly what the next three parts add,
+building directly on the project you just created:</p>
 <ul>
 <li><strong>Part 2 — Give it live order data over MCP.</strong> Right
 now the agent can't look up a real order. In part 2 we stand up a proper
@@ -757,9 +984,17 @@ tool that lets the agent file a return on the customer's behalf and
 fires a <strong>webhook</strong> the moment it does, pushing a live
 alert to the returns team — while never deciding the refund itself. Then
 we hand that tool to the agent too.</li>
+<li><strong>Part 4 — Deploy it to WSO2 Cloud and observe it.</strong> In
+part 4 we take the finished agent (and the orders service and returns
+receiver it depends on) to production on <strong>WSO2 Cloud</strong>,
+switch it to a production model provider and a managed database, and
+<strong>observe</strong> every tool call and decision — with the
+dev-time agent trace viewer and the cloud's runtime logs, metrics,
+alerts, and traces. See <strong>Deploy and observe your AI agent on WSO2
+Cloud</strong>.</li>
 </ul>
-<p>And a few directions beyond the series, when you take this to
-production:</p>
+<p>And a few directions beyond the series, when you take this even
+further in production:</p>
 <ul>
 <li><strong>Human handoff / real refunds.</strong> This build politely
 points customers to support and never lets the agent move money. A real
@@ -767,10 +1002,13 @@ build would add a <a
 href="https://wso2.com/integration-platform/docs/genai/develop/agents/tools">connector-based
 tool</a> to open tickets in a helpdesk for the support team to
 action.</li>
-<li><strong>A durable / external vector store.</strong> The in-memory
-store resets on restart. For production, use Pinecone, pgvector,
-Weaviate, or Milvus (configure the index for 1536-dim vectors) and you
-can split ingestion and serving into separate processes.</li>
+<li><strong>Scale the vector store and ingestion.</strong> This build
+already uses a durable, managed PostgreSQL vector database, so nothing
+resets on restart. For production, move the managed database to a
+service plan with high availability and longer backup retention, tighten
+access with an IP allowlist, and lean on the scheduled ingestion
+automation to keep the knowledge base current. Pinecone is also a
+supported vector store if you prefer it.</li>
 <li><strong>Persistent memory.</strong> Swap the in-memory store for the
 MSSQL short-term memory store so conversations survive restarts — see <a
 href="https://wso2.com/integration-platform/docs/genai/develop/agents/memory">Memory</a>
