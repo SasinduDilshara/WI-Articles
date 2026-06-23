@@ -86,6 +86,13 @@ The MCP service is a **separate integration** from both the order API and the ag
 
 [SCREENSHOT: The "Create New Integration" dialog for the orders-mcp-service project.]
 
+> **Note — before you start: two ways to build this MCP service.** You already have the order API and its OpenAPI contract. Turning that into an MCP service means exposing its endpoints as **tools** an AI agent can call. There are two ways to do it:
+>
+> - **Auto-generate (the shortcut):** one command — `bal mcp -i orders_openapi.yaml` — reads the contract and creates a tool for *every* endpoint, automatically. Fast, and fine when you just want the whole API exposed as-is.
+> - **Build by hand (what we do here):** you create each tool yourself in the editor.
+>
+> We choose by hand for one reason. Unlike a REST API — where *you* decide which endpoint to call, an MCP tool is chosen by the **AI agent on its own**, and the only thing it reads to decide is the tool's name and a description. So those words matter a lot. Auto-generation writes them from the contract, generically; writing them ourselves (clear names, agent-friendly descriptions, and only the few endpoints the agent needs) is what makes the agent reliably pick the right tool. The steps below do this one tool at a time.
+
 ### Step B.2 — Create an HTTP client for the order API
 
 This service never touches the database — it calls the order API. The cleanest way to do that in WSO2 Integrator is to **generate a typed client from the API's OpenAPI contract**, so every operation becomes a named method with typed inputs and outputs. You can get that contract two ways: it ships in the order service repo as `orders_openapi.yaml`, and WSO2 Integrator can also produce it for you — open the order API project and it exposes the OpenAPI definition of the `/orders` service. Either way you end up with the same `orders_openapi.yaml`.
@@ -274,17 +281,40 @@ See [Consuming MCP from an agent](https://wso2.com/integration-platform/docs/gen
 
 ### Step C.2 — Update the agent's instructions
 
-The agent can now reach the order tools, but it still needs to know *when* to use them. Click the **AI Agent** node, open the **Instructions** (system prompt) editor, and update the **USING YOUR TOOLS** section so it reads:
+The agent can now reach the order tools, but it still needs to know *when* to use them. Click the **AI Agent** node and open the **Instructions** (system prompt) editor. We make three edits to the part-1 prompt: add four lines to **USING YOUR TOOLS** for the order tools, and remove the two **WHEN YOU CAN'T HELP** lines that no longer apply — the one saying the agent *can't* look up a live order, and the one saying it can't change or cancel an order — since those capabilities now exist.
+
+Replace the prompt with the complete version below:
 
 ```
+You are the front-line support assistant for VoltMart, an online consumer-electronics store (headphones, speakers, laptops, and accessories). You are friendly, sound human, and keep answers short — usually one to three sentences.
+
+SCOPE
+- Only help with VoltMart: orders, products, policies (shipping, returns, refunds, warranty, payments/billing), and basic account questions.
+- Politely decline anything unrelated and steer the customer back to VoltMart support. Do not answer general-knowledge questions.
+
 USING YOUR TOOLS
 - For ANY question about VoltMart policy (shipping, delivery, returns, refunds, warranty, payments, billing, account basics), call searchVoltMartPolicies FIRST and answer only from what it returns. If it returns NO_POLICY_FOUND, do not guess — tell the customer you don't have that on file and point them to VoltMart support.
 - For the LIVE status of a specific order, call getStatus. You need BOTH the order number AND the account email; if either is missing, ask for it first. Never reveal order details unless the tool returns them — if it returns VERIFICATION_FAILED or ORDER_NOT_FOUND, tell the customer politely and do not invent a status.
 - To place a NEW order, call createOrder once you have the account email and the item. Read the new order number back to the customer.
 - To CANCEL/remove an order, call removeOrder. As with status, you need BOTH the order number AND the account email, and the tool only removes it when the email matches.
+
+WHEN YOU CAN'T HELP
+You cannot fully resolve every request yourself. In these cases, politely tell the customer you can't resolve it yourself and direct them to VoltMart's support team (available 8:00 AM – 8:00 PM ET, seven days a week). NEVER promise a specific outcome (no "you'll get a refund"). This applies when:
+- The question is not covered by the knowledge base and no tool can answer it.
+- The customer disputes a charge, or asks for a refund, discount, or any exception to policy.
+- The customer reports a damaged, defective, or wrong item.
+- There is a complaint, a serious or legal tone, or clear frustration.
+- The customer explicitly asks to speak to a person.
+
+GUARDRAILS
+- Never invent a policy, price, date, or promise. If it is not in the knowledge base or returned by a tool, say you don't have that information and direct them to VoltMart support.
+- Never authorize refunds, discounts, or exceptions — that is for the VoltMart support team to decide.
+- Never reveal another customer's information or account details.
 ```
 
-Then remove the two part-1 lines that no longer apply — the one telling the agent it *can't* look up orders, and the one saying it can't change or cancel an order — since those capabilities now exist. Select **Save**.
+Select **Save**.
+
+Compared to the part-1 prompt, the only changes are the three new **USING YOUR TOOLS** lines for `getStatus`, `createOrder`, and `removeOrder`, and the removal of the two **WHEN YOU CAN'T HELP** lines that said the agent couldn't look up or cancel an order — everything else stays exactly as it was.
 
 > **Why the identity rule shows up in the prompt too.** You'll notice the prompt asks the agent for the email *and* the order API enforces the match. That's deliberate: the prompt makes for a good conversation (the agent asks first instead of triggering a `403`), while the API enforces the rule no matter what any client does. Never trust the prompt alone for a security boundary — the backend is the source of truth.
 
