@@ -8,15 +8,15 @@ In any real company, that backend already exists, and it almost always exposes i
 
 We'll do it the way the agentic world is converging on: **MCP**, the Model Context Protocol. MCP is an open standard — think of it as a universal adapter between agents and the systems they act on. An MCP server publishes a set of named, typed **tools**, and any AI agent (our WSO2 agent) can discover and call them without bespoke integration code. The order system stays where it is and keeps speaking plain HTTP; a small MCP service sits in front of its API and republishes its operations as MCP tools, knowing nothing about any agent. The agent connects as a single **toolkit** and instantly gains every tool it publishes — add a tool later and the agent picks it up automatically. WSO2 Integrator has first-class support for every layer of this.
 
-To keep the tutorial self-contained, we stand in for VoltMart's order system with a real **HTTP service backed by a PostgreSQL database in Docker** — exactly the shape of backend you'd already run — and then put an MCP service in front of *that API*. By the end, the same agent from part 1 will look up live orders, create new ones, and cancel them, all by calling a real REST API over a generated HTTP client. No prior MCP experience needed.
+To keep the tutorial focused on MCP, VoltMart's order system **already exists** — a real **HTTP service backed by a PostgreSQL database**, ready to clone and run from GitHub, exactly the shape of backend you'd already have in production. We put an MCP service in front of *that API*. By the end, the same agent from part 1 will look up live orders, create new ones, and cancel them, all by calling a real REST API over a generated HTTP client. No prior MCP experience needed.
 
 ---
 
 ## What we are going to build
 
-We'll build this in three parts:
+We'll focus on the two things you build — the MCP service and the agent wiring — on top of an order system that already exists:
 
-1. **VoltMart's order management system — an HTTP service.** The backend the agent will ultimately act on, exposed the way real systems are: as a REST API (`GET`/`POST`/`DELETE` on `/orders`) in front of a **PostgreSQL database running in Docker**. It enforces its own rules — including the **ownership check** that an order is only revealed to the email it belongs to — and knows nothing about AI. In a real company this API *already exists*; we stand it up here so the tutorial is self-contained. **If you already have an order API, you can skip most of this part** and point Part B at your own service instead.
+1. **VoltMart's order management system — an existing HTTP service.** The backend the agent will ultimately act on, exposed the way real systems are: a REST API (`GET`/`POST`/`DELETE` on `/orders`) over a **PostgreSQL database**. It enforces its own rules — including the **ownership check** that an order is only revealed to the email it belongs to — and knows nothing about AI. In a real company this API *already exists*, so we don't build it here: you'll **clone it from GitHub and run it locally** (or point Part B at your own order API instead).
 2. **A VoltMart Orders MCP service** — the bridge that sits *in front of* that API. It calls the order service through a **typed HTTP client generated from the API's OpenAPI contract**, and republishes three order *operations* as MCP tools. It holds no data of its own — it's a thin adapter from HTTP to MCP.
    - `getStatus` — look up an order's live status and ETA.
    - `createOrder` — place a new order.
@@ -29,7 +29,7 @@ We'll build this in three parts:
 
 The agent keeps the policy RAG tool from part 1. Alongside it sits the **MCP toolkit** — the agent's connection to the orders MCP service. When a customer asks about a live order, the agent calls a tool on the toolkit; the toolkit forwards the call over MCP to the **orders MCP service**, which calls the **order management HTTP API** through its generated client; the API runs the real query against **PostgreSQL** and the answer flows back up. Four layers, each one decoupled from the next — they share only a contract (MCP between the agent and the MCP service; the OpenAPI contract between the MCP service and the order API).
 
-> **Companion code.** You'll build everything below in the low-code editor. If you'd rather read or run the finished result, the complete projects are in the [`voltmart-orders-mcp`](voltmart-orders-mcp) folder — the order management API (`orders-api`, with its Docker setup), the orders MCP service (`orders-mcp-service`, with the generated client), and the part-1 agent carried forward (`voltmart-support`). WSO2 Integrator keeps the visual flows and the underlying source in sync, so the projects there are exactly what the clicks below produce.
+> **Companion code.** You'll build the MCP service and wire up the agent below in the low-code editor. If you'd rather read or run the finished result, the complete projects are in the [`voltmart-orders-mcp`](voltmart-orders-mcp) folder — the orders MCP service (`orders-mcp-service`, with the generated client) and the part-1 agent carried forward (`voltmart-support`). The order management API lives in its own repo, which you clone in [Part A](#part-a--get-voltmarts-order-management-system-running). WSO2 Integrator keeps the visual flows and the underlying source in sync, so the projects there are exactly what the clicks below produce.
 
 ---
 
@@ -37,187 +37,27 @@ The agent keeps the policy RAG tool from part 1. Alongside it sits the **MCP too
 
 You'll need everything from [part 1](build-first-ai-integration.md#prerequisites-getting-your-tools-ready) — WSO2 Integrator installed, a WSO2 account, and the part-1 agent project — plus one new thing:
 
-- **Docker Desktop** (or any Docker engine with Compose). We use it to run PostgreSQL with zero manual setup. Install it from `https://www.docker.com/products/docker-desktop/` and make sure `docker compose version` prints a version.
+- **Docker Desktop** (or any Docker engine with Compose). The order service you clone in Part A runs its PostgreSQL database in Docker, so you'll need it to start that backend locally. Install it from `https://www.docker.com/products/docker-desktop/` and make sure `docker compose version` prints a version. (Skip this if you're pointing at your own already-running order API.)
 
 ---
 
-## Part A — Stand up VoltMart's order management system
+## Part A — Get VoltMart's order management system running
 
-> **In your system, this part may already exist.** We stand up a throwaway database and a small HTTP API here only so the tutorial is self-contained. **Already have an order API? Skip to [Part B](#part-b--build-the-voltmart-orders-mcp-service)** and point the HTTP client at your own service instead.
+> **In your system, this part already exists.** VoltMart's order API is a backend you'd already run in production, so we don't build it in this tutorial — we use a ready-made one. **Already have an order API? Skip to [Part B](#part-b--build-the-voltmart-orders-mcp-service)** and point the HTTP client at your own service instead.
 
-In the real world VoltMart's orders live behind an HTTP API in front of a production database. We'll reproduce both locally: a throwaway **PostgreSQL** container for the data, and an **HTTP service** in WSO2 Integrator for the API. The MCP service in Part B will only ever talk to the API — never the database directly — exactly as it would against your real backend.
+The agent ultimately acts on VoltMart's **order management system**: a plain HTTP service over a PostgreSQL database. The MCP service in Part B will only ever talk to this API — never the database directly — exactly as it would against your real backend. The API exposes three operations on `/orders`:
 
-### Step A.1 — Start the database
+- **`GET /orders/{orderNumber}?email=…`** — look up an order. Returns `200` with the order, `404` if no order matches the number, or `403` if the email doesn't match the account the order belongs to.
+- **`POST /orders`** — create an order from `{ orderNumber, accountEmail, item }`. Returns `201` with the new order, or `409` if that number is already taken.
+- **`DELETE /orders/{orderNumber}?email=…`** — remove an order after the same ownership check. Returns `200`, `404`, or `403`.
 
-First the data. Create a folder for the database (anywhere you like — e.g. `orders-api`) and add a `docker-compose.yml`:
+The one rule worth calling out is the **ownership check**: an order's details are only revealed — and an order is only removed — when the caller supplies the email the order belongs to (compared case-insensitively). That rule lives *in the API*, the system that owns the data, not in the agent's prompt or the MCP adapter, so it holds for every caller: our MCP service, a mobile app, a back-office tool. Each operation also returns its statuses as a *typed* contract (the order plus the `403`/`404`/`409` records), which is what lets the generated client in Part B branch on them with full type safety.
 
-```yaml
-# A throwaway PostgreSQL instance that stands in for VoltMart's real order store.
-# `db/init.sql` is mounted into the image's init directory, so the table and seed
-# rows are created automatically the first time the container starts.
-#
-#   docker compose up -d     # start the database
-#   docker compose down -v    # stop it and wipe the data
-services:
-  orders-db:
-    image: postgres:16
-    container_name: voltmart-orders-db
-    environment:
-      POSTGRES_USER: voltmart
-      POSTGRES_PASSWORD: voltmart
-      POSTGRES_DB: voltmart_orders
-    ports:
-      - "5432:5432"
-    volumes:
-      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U voltmart -d voltmart_orders"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-```
+### Clone and run it locally
 
-Then create `db/init.sql` — the schema plus three seed orders, so the API has real data to serve the moment it starts:
+Get the order service from [VoltMart Order Service](TODO: repo URL) and start it by following the steps in its README. It comes up on **`http://localhost:8080/orders`**, backed by a PostgreSQL container (this is the one place you need Docker) and seeded with a few orders to work with.
 
-```sql
--- Schema + seed data for VoltMart's order database.
--- Runs automatically the first time the Postgres container starts.
-
-CREATE TABLE IF NOT EXISTS orders (
-    order_number  TEXT PRIMARY KEY,
-    account_email TEXT NOT NULL,
-    item          TEXT NOT NULL,
-    -- processing | shipped | delivered
-    status        TEXT NOT NULL DEFAULT 'processing',
-    eta           TEXT NOT NULL
-);
-
-INSERT INTO orders (order_number, account_email, item, status, eta) VALUES
-    ('10432', 'jordan@example.com', 'AirWave Pro wireless headphones', 'shipped',    'arriving Thursday, 18 June 2026'),
-    ('10588', 'priya@example.com',  'SoundDock 2 Bluetooth speaker',   'processing', 'ships within 1 business day'),
-    ('10219', 'sam@example.com',    'VoltBook 14 laptop',              'delivered',  'delivered on 9 June 2026')
-ON CONFLICT (order_number) DO NOTHING;
-```
-
-Start the database from that folder:
-
-```bash
-docker compose up -d
-```
-
-Give it a few seconds, then confirm the seed data is there:
-
-```bash
-docker exec -it voltmart-orders-db \
-  psql -U voltmart -d voltmart_orders -c "SELECT order_number, status FROM orders;"
-```
-
-You should see the three orders listed. The database is live; now we put an API in front of it.
-
-### Step A.2 — Create the order API project
-
-In WSO2 Integrator, create a new integration. Set **Integration Name** to `VoltMartOrdersApi` and **Project Name** to `orders-api`, then select **Create Integration**. This is a standalone integration — the order system, with no knowledge of agents or MCP.
-
-[SCREENSHOT: The "Create New Integration" dialog for the orders-api project.]
-
-### Step A.3 — Add a connection to the database
-
-Before the service can read or write orders, it needs a **connection** to the database — the low-code equivalent of "here's where the orders live and how to sign in."
-
-1. In the design view, select **+ Add Artifact**.
-2. Under **Connections** (the connector store), search for **PostgreSQL** and select it.
-3. In the **Add New Connection** form, fill in the same values you set in `docker-compose.yml`:
-   - **Host:** `localhost`
-   - **Port:** `5432`
-   - **Username:** `voltmart`
-   - **Password:** `voltmart`
-   - **Database:** `voltmart_orders`
-4. Give the connection a name like `ordersDb` and select **Create**.
-
-[SCREENSHOT: The PostgreSQL "Add New Connection" form with the host, port, and database filled in.]
-
-> 💡 WSO2 Integrator stores the connection in the project and keeps the secret values out of your source — you point at it by name from any flow. That one connection is what every resource below will reuse to reach the live data.
-
-### Step A.4 — Create the HTTP service
-
-Now the API itself.
-
-1. Select **+ Add Artifact**.
-2. Under **Integration as API**, select **HTTP Service**.
-3. Fill in the creation form:
-   - **Service Contract:** leave it on **Design From Scratch** (we'll define the resources by hand). The other option, *Import From OpenAPI Specification*, is for when you already have a contract to implement.
-   - **Service Base Path:** `/orders` — so every resource hangs off `http://localhost:8080/orders`.
-   - **Advanced Configurations:** choose a **Custom Listener** and set the port to `8080`. (The shared listener on 9090 is reserved for the agent.)
-4. Select **Create**.
-
-WSO2 Integrator opens the **Service Designer**: the listener, the base path, and an empty list of resources with a **+ Add Resource** button. See [HTTP service](https://wso2.com/integration-platform/docs/develop/integration-artifacts/service/http) for the full reference.
-
-[SCREENSHOT: The HTTP Service creation form with base path /orders and a custom listener on port 8080.]
-
-### Step A.5 — Add the three order resources
-
-A REST API is a set of **resources** — one per operation. We add three, each the same way: click **+ Add Resource**, fill the short form (method, path, parameters, payload, responses), then build the resource's flow. The ownership check — *an order is only revealed to the email that owns it* — lives right here, in the backend, so it holds no matter who calls the API.
-
-**`GET /orders/{orderNumber}` — look up an order.** Click **+ Add Resource**:
-
-1. **HTTP Method:** `GET`.
-2. **Resource Path:** add a **Path Param** named `orderNumber` of type `string`, so the path becomes `[string orderNumber]`.
-3. **Query Parameter:** add a required `string` parameter named `email` — the account email the caller must supply.
-4. **Responses:** declare three with **+ Response** — `200` returning an `Order`, `404` (no such order), and `403` (the email doesn't match).
-
-Then build the flow: query the `ordersDb` connection for the row whose `order_number` matches `orderNumber`; return `404` if there's no row; return `403` if the row's `account_email` doesn't match the `email` parameter (compared case-insensitively); otherwise return the order with `200`.
-
-**`POST /orders` — create an order.** Click **+ Add Resource**:
-
-1. **HTTP Method:** `POST`.
-2. **Resource Path:** `.` (the base path itself).
-3. **Define Payload:** a record with `orderNumber`, `accountEmail`, and `item`.
-4. **Responses:** `201` returning the created `Order`, and `409` if the number is already taken.
-
-The flow checks `ordersDb` for an existing order with that number; returns `409` if found; otherwise inserts the new row (status `processing`, ETA `ships within 1 business day`) and returns it with `201`.
-
-**`DELETE /orders/{orderNumber}` — remove an order.** Same shape as the GET — a `string orderNumber` path param, a required `email` query parameter, and `200` / `404` / `403` responses — except the flow ends by deleting the row (after the same ownership check) and returns the removed order.
-
-WSO2 Integrator keeps the Service Designer and the source in sync. The resource functions it produces look like this — note how each return type is a union of the order and the typed status responses, which is what makes the API self-documenting (and, in Part B, gives the generated client typed results to branch on):
-
-```ballerina
-service /orders on new http:Listener(port) {
-
-    resource function get [string orderNumber](string email)
-            returns Order|OrderNotFound|OrderForbidden|error {
-        string number = normalize(orderNumber);
-        Order|sql:Error result = fetchOrder(number);
-        if result is sql:NoRowsError {
-            return <OrderNotFound>{body: {message: "No order matches that number."}};
-        }
-        if result is sql:Error {
-            return result;
-        }
-        if result.accountEmail.toLowerAscii() != email.trim().toLowerAscii() {
-            return <OrderForbidden>{body: {message: "Email does not match this order."}};
-        }
-        return result;
-    }
-
-    resource function post .(@http:Payload NewOrder newOrder)
-            returns OrderCreated|OrderConflict|error {
-        // ... 409 if the number is taken, otherwise insert and return 201 ...
-    }
-
-    resource function delete [string orderNumber](string email)
-            returns Order|OrderNotFound|OrderForbidden|error {
-        // ... same ownership check as GET, then delete the row ...
-    }
-}
-```
-
-[SCREENSHOT: The Service Designer for /orders showing the GET, POST, and DELETE resources.]
-
-> **Why the ownership check lives in the API.** Returning an order only to the email that owns it is a *business rule*, so it belongs in the system that owns the data — not in the agent's prompt, and not in the MCP adapter. Putting it here means it holds for every caller: our MCP service, a mobile app, a back-office tool. The agent layers a *conversation* on top of it later, but the API is the source of truth.
-
-### Step A.6 — Run the order API and verify it
-
-Start the service with the **Run** button. It comes up on port `8080`. Test it straight from the command line — no agent, no MCP, just HTTP:
+Once it's up, a quick check from the command line — no agent, no MCP, just HTTP — confirms it's live and that the ownership check works:
 
 ```bash
 # A real order, with the matching email → 200 and the order
@@ -225,18 +65,11 @@ curl -s "http://localhost:8080/orders/10432?email=jordan@example.com"
 
 # The wrong email → 403, no details leak
 curl -s -o /dev/null -w "%{http_code}\n" "http://localhost:8080/orders/10432?email=wrong@example.com"
-
-# Place a new order → 201
-curl -s -X POST http://localhost:8080/orders \
-  -H "Content-Type: application/json" \
-  -d '{"orderNumber":"10644","accountEmail":"dana@example.com","item":"VoltBuds Mini"}'
 ```
 
-The first call returns the order as JSON; the second prints `403`; the third returns the newly created order. That's the live backend the agent could never reach from a knowledge base — and the contract Part B will consume.
+The first call returns order `10432` as JSON; the second prints `403`. That's the live backend the agent could never reach from a knowledge base — and the contract Part B will consume.
 
-[SCREENSHOT: A terminal showing the three curl calls and their responses.]
-
-> 💡 When you're done with the whole tutorial, `docker compose down -v` stops the container and wipes the data, so you always start from a clean slate next time.
+[SCREENSHOT: A terminal showing the two curl calls and their responses.]
 
 ---
 
@@ -255,7 +88,7 @@ The MCP service is a **separate integration** from both the order API and the ag
 
 ### Step B.2 — Create an HTTP client for the order API
 
-This service never touches the database — it calls the order API. The cleanest way to do that in WSO2 Integrator is to **generate a typed client from the API's OpenAPI contract**, so every operation becomes a named method with typed inputs and outputs. WSO2 Integrator can produce that contract for you: open the `orders-api` project, and it exposes the OpenAPI definition of the `/orders` service (the companion code includes it as `orders-api/orders_openapi.yaml`).
+This service never touches the database — it calls the order API. The cleanest way to do that in WSO2 Integrator is to **generate a typed client from the API's OpenAPI contract**, so every operation becomes a named method with typed inputs and outputs. You can get that contract two ways: it ships in the order service repo as `orders_openapi.yaml`, and WSO2 Integrator can also produce it for you — open the order API project and it exposes the OpenAPI definition of the `/orders` service. Either way you end up with the same `orders_openapi.yaml`.
 
 Now create the client connection:
 
@@ -459,7 +292,7 @@ Then remove the two part-1 lines that no longer apply — the one telling the ag
 
 ## Take it for a spin
 
-Make sure all four pieces are running: the **Docker database** (`docker compose up -d`), the **order API** (port 8080), the **orders MCP service** (port 8290), and the **agent** (the **Run** button, port 9090). Then open the agent's **Chat** panel — or `curl` against `http://localhost:9090/voltMartAssistant/chat` as in part 1.
+Make sure everything is running: the **order service** (port 8080, started from its repo as in [Part A](#part-a--get-voltmarts-order-management-system-running)), the **orders MCP service** (port 8290), and the **agent** (the **Run** button, port 9090). Then open the agent's **Chat** panel — or `curl` against `http://localhost:9090/voltMartAssistant/chat` as in part 1.
 
 #### Sample 1 — Live order status (now for real)
 
@@ -526,11 +359,10 @@ curl -X POST http://localhost:9090/voltMartAssistant/chat \
 }
 ```
 
-*Expected behavior:* calls `createOrder`, which `POST`s to the order API; the new row is now in the database. Confirm it directly:
+*Expected behavior:* calls `createOrder`, which `POST`s to the order API; the new row is now in the database. Confirm it straight through the order API:
 
 ```bash
-docker exec -it voltmart-orders-db \
-  psql -U voltmart -d voltmart_orders -c "SELECT * FROM orders WHERE order_number = '10644';"
+curl -s "http://localhost:8080/orders/10644?email=dana@example.com"
 ```
 
 #### Sample 3 — Identity check on removal
