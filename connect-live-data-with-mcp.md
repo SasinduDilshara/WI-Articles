@@ -8,7 +8,7 @@ In any real company, that backend already exists, and it almost always exposes i
 
 We'll do it the way the agentic world is converging on: **MCP**, the Model Context Protocol. MCP is an open standard — think of it as a universal adapter between agents and the systems they act on. An MCP server publishes a set of named, typed **tools**, and any AI agent (our WSO2 agent) can discover and call them without bespoke integration code. The order system stays where it is and keeps speaking plain HTTP; a small MCP service sits in front of its API and republishes its operations as MCP tools, knowing nothing about any agent. The agent connects as a single **toolkit** and instantly gains every tool it publishes — add a tool later and the agent picks it up automatically. WSO2 Integrator has first-class support for every layer of this.
 
-To keep the tutorial focused on MCP, VoltMart's order system **already exists** — a real **HTTP service backed by a PostgreSQL database**, ready to clone and run from GitHub, exactly the shape of backend you'd already have in production. We put an MCP service in front of *that API*. By the end, the same agent from part 1 will look up live orders, create new ones, and cancel them, all by calling a real REST API over a generated HTTP client. No prior MCP experience needed.
+To keep the tutorial focused on MCP, VoltMart's order system **already exists** — a real **HTTP service** exposing a REST API, ready to clone and run from GitHub, exactly the shape of backend you'd already have in production. We put an MCP service in front of *that API*. By the end, the same agent from part 1 will look up live orders, create new ones, and cancel them, all by calling a real REST API over a generated HTTP client. No prior MCP experience needed.
 
 ---
 
@@ -16,7 +16,7 @@ To keep the tutorial focused on MCP, VoltMart's order system **already exists** 
 
 We'll focus on the two things you build — the MCP service and the agent wiring — on top of an order system that already exists:
 
-1. **VoltMart's order management system — an existing HTTP service.** The backend the agent will ultimately act on, exposed the way real systems are: a REST API (`GET`/`POST`/`DELETE` on `/orders`) over a **PostgreSQL database**. It enforces its own rules — including the **ownership check** that an order is only revealed to the email it belongs to — and knows nothing about AI. In a real company this API *already exists*, so we don't build it here: you'll **clone it from GitHub and run it locally** (or point Part B at your own order API instead).
+1. **VoltMart's order management system — an existing HTTP service.** The backend the agent will ultimately act on, exposed the way real systems are: a REST API (`GET`/`POST`/`DELETE` on `/orders`). It enforces its own rules — including the **ownership check** that an order is only revealed to the email it belongs to — and knows nothing about AI. In a real company this API *already exists*, so we don't build it here: you'll **clone it from GitHub and run it locally** (or point Part B at your own order API instead).
 2. **A VoltMart Orders MCP service** — the bridge that sits *in front of* that API. It calls the order service through a **typed HTTP client generated from the API's OpenAPI contract**, and republishes three order *operations* as MCP tools. It holds no data of its own — it's a thin adapter from HTTP to MCP.
    - `getStatus` — look up an order's live status and ETA.
    - `createOrder` — place a new order.
@@ -25,9 +25,9 @@ We'll focus on the two things you build — the MCP service and the agent wiring
 
 ### Architecture
 
-![VoltMart with MCP architecture: the customer chats with the AI agent; the agent uses its policy RAG tool plus an MCP toolkit; the toolkit speaks MCP to the standalone VoltMart Orders MCP service; that service calls the VoltMart order management HTTP API through a generated HTTP client; the order API reads and writes a PostgreSQL database running in Docker.](voltmart-orders-mcp/architecture.png)
+![VoltMart with MCP architecture: the customer chats with the AI agent; the agent uses its policy RAG tool plus an MCP toolkit; the toolkit speaks MCP to the standalone VoltMart Orders MCP service; that service calls the VoltMart order management HTTP API through a generated HTTP client; the order API reads and writes its own database.](voltmart-orders-mcp/architecture.png)
 
-The agent keeps the policy RAG tool from part 1. Alongside it sits the **MCP toolkit** — the agent's connection to the orders MCP service. When a customer asks about a live order, the agent calls a tool on the toolkit; the toolkit forwards the call over MCP to the **orders MCP service**, which calls the **order management HTTP API** through its generated client; the API runs the real query against **PostgreSQL** and the answer flows back up. Four layers, each one decoupled from the next — they share only a contract (MCP between the agent and the MCP service; the OpenAPI contract between the MCP service and the order API).
+The agent keeps the policy RAG tool from part 1. Alongside it sits the **MCP toolkit** — the agent's connection to the orders MCP service. When a customer asks about a live order, the agent calls a tool on the toolkit; the toolkit forwards the call over MCP to the **orders MCP service**, which calls the **order management HTTP API** through its generated client; the API runs the real query against its own database and the answer flows back up. Four layers, each one decoupled from the next — they share only a contract (MCP between the agent and the MCP service; the OpenAPI contract between the MCP service and the order API).
 
 > **Companion code.** You'll build the MCP service and wire up the agent below in the low-code editor. If you'd rather read or run the finished result, the complete projects are in the [`voltmart-orders-mcp`](voltmart-orders-mcp) folder — the orders MCP service (`orders-mcp-service`, with the generated client) and the part-1 agent carried forward (`voltmart-support`). The order management API lives in its own repo, which you clone in [Part A](#part-a--get-voltmarts-order-management-system-running). WSO2 Integrator keeps the visual flows and the underlying source in sync, so the projects there are exactly what the clicks below produce.
 
@@ -37,7 +37,7 @@ The agent keeps the policy RAG tool from part 1. Alongside it sits the **MCP too
 
 You'll need everything from [part 1](build-first-ai-integration.md#prerequisites-getting-your-tools-ready) — WSO2 Integrator installed, a WSO2 account, and the part-1 agent project — plus one new thing:
 
-- **Docker Desktop** (or any Docker engine with Compose). The order service you clone in Part A runs its PostgreSQL database in Docker, so you'll need it to start that backend locally. Install it from `https://www.docker.com/products/docker-desktop/` and make sure `docker compose version` prints a version. (Skip this if you're pointing at your own already-running order API.)
+- **Docker Desktop** (or any Docker engine with Compose). The order service you clone in Part A runs in Docker, so you'll need it to start that backend locally. Install it from `https://www.docker.com/products/docker-desktop/` and make sure `docker compose version` prints a version. (Skip this if you're pointing at your own already-running order API.)
 
 ---
 
@@ -45,7 +45,7 @@ You'll need everything from [part 1](build-first-ai-integration.md#prerequisites
 
 > **In your system, this part already exists.** VoltMart's order API is a backend you'd already run in production, so we don't build it in this tutorial — we use a ready-made one. **Already have an order API? Skip to [Part B](#part-b--build-the-voltmart-orders-mcp-service)** and point the HTTP client at your own service instead.
 
-The agent ultimately acts on VoltMart's **order management system**: a plain HTTP service over a PostgreSQL database. The MCP service in Part B will only ever talk to this API — never the database directly — exactly as it would against your real backend. The API exposes three operations on `/orders`:
+The agent ultimately acts on VoltMart's **order management system**: a plain HTTP service exposing a REST API. The MCP service in Part B will only ever talk to this API — never its data store directly — exactly as it would against your real backend. The API exposes three operations on `/orders`:
 
 - **`GET /orders/{orderNumber}?email=…`** — look up an order. Returns `200` with the order, `404` if no order matches the number, or `403` if the email doesn't match the account the order belongs to.
 - **`POST /orders`** — create an order from `{ orderNumber, accountEmail, item }`. Returns `201` with the new order, or `409` if that number is already taken.
@@ -55,21 +55,21 @@ The one rule worth calling out is the **ownership check**: an order's details ar
 
 ### Clone and run it locally
 
-Get the order service from [VoltMart Order Service](TODO: repo URL) and start it by following the steps in its README. It comes up on **`http://localhost:8080/orders`**, backed by a PostgreSQL container (this is the one place you need Docker) and seeded with a few orders to work with.
+Clone the order service from [VoltMart Order Service](TODO: repo URL) — a small Ballerina HTTP service backed by a PostgreSQL database. The repo's README has the full reference; the short version is two steps:
 
-Once it's up, a quick check from the command line — no agent, no MCP, just HTTP — confirms it's live and that the ownership check works:
+1. **Start the database.** From the project directory, bring up the seeded PostgreSQL container. The schema and a few sample orders are created automatically the first time it starts — this is the one place you need Docker.
 
-```bash
-# A real order, with the matching email → 200 and the order
-curl -s "http://localhost:8080/orders/10432?email=jordan@example.com"
+   ```bash
+   docker compose up -d
+   ```
 
-# The wrong email → 403, no details leak
-curl -s -o /dev/null -w "%{http_code}\n" "http://localhost:8080/orders/10432?email=wrong@example.com"
-```
+2. **Start the API.** Run the service with the Ballerina distribution that ships with WSO2 Integrator. It reads its DB connection from `Config.toml`, which already matches the Docker setup.
 
-The first call returns order `10432` as JSON; the second prints `403`. That's the live backend the agent could never reach from a knowledge base — and the contract Part B will consume.
+   ```bash
+   bal run
+   ```
 
-[SCREENSHOT: A terminal showing the two curl calls and their responses.]
+The API comes up on **`http://localhost:8080/orders`**, seeded with a few orders (including `10432` for `jordan@example.com`) to work with. The README walks through verifying it with a couple of `curl` calls — confirming it's live and that the ownership check returns `403` for the wrong email — so you can be sure the backend is ready before moving on. That's the live backend the agent could never reach from a knowledge base, and the contract Part B will consume.
 
 ---
 

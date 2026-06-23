@@ -115,65 +115,67 @@ Your AI Agent Live Data with MCP on WSO2 Integrator</h1>
 on <a
 href="https://wso2.com/integration-platform/docs/genai/overview">WSO2
 Integrator</a> — the VoltMart Support Assistant. It answers policy
-questions from a knowledge base, stays on-topic, and steps back
-gracefully when a request is beyond what it should decide. It's
-genuinely useful.</p>
-<p>But it has a blind spot, and you probably felt it: it can't see a
-single byte of <em>live</em> data. Ask it <em>"where's my order
-#10432?"</em> and the best it can do is recite the self-service tracking
-steps from the docs. The knowledge base holds static policy text; an
-order's status changes by the hour and is different for every customer.
-To answer that question the agent needs to reach a real backend.</p>
-<p>That's what this article is about. We'll stand up a proper
-<strong>orders backend</strong> and connect it to the agent — and we'll
-do it the way the agentic world is converging on: <strong>MCP</strong>,
-the Model Context Protocol. By the end, the same VoltMart agent will
-look up live orders, create new ones, and cancel them — all backed by a
-real database running in Docker.</p>
-<p>No prior MCP experience is needed. If you finished part 1, you're
-ready for this.</p>
-<hr />
-<h2 id="what-is-mcp-and-why-use-it-here">What is MCP, and why use it
-here?</h2>
-<p><strong>MCP (Model Context Protocol)</strong> is an open standard
-that lets an AI agent connect to external tools and data in a
-structured, predictable way. Think of it as a universal adapter between
-agents and the systems they need to act on: a server publishes a set of
-named, typed <strong>tools</strong>, and any MCP-aware client — our WSO2
-agent, Claude Desktop, an IDE — can discover those tools and call them,
-reasoning over the results without any bespoke integration code.</p>
-<p>Why does that matter for VoltMart? In part 1, the agent's one tool
-(<code>searchVoltMartPolicies</code>) lived <em>inside</em> the agent's
-own project. That's fine for one tool. But an orders backend is a
-different beast: it's owned by a different team, it talks to a database,
-and it will be reused by more than just this agent (a mobile app, an
-internal dashboard, a second agent). Baking it into the agent would
-couple things that should stay separate.</p>
-<p>With MCP we draw a clean line:</p>
-<ul>
-<li>The <strong>orders service</strong> owns the data and the business
-rules (identity checks, what "create an order" means). It exposes them
-as MCP tools and knows nothing about any agent.</li>
-<li>The <strong>agent</strong> connects to that service as a
+questions from a knowledge base and stays on-topic, but it has a blind
+spot you probably felt: it can't see <em>live</em> data and it can't
+<em>do</em> anything. Ask it <em>"where's my order #10432?"</em> and the
+best it can do is recite the tracking steps from the docs. To actually
+answer — let alone <em>act</em> — the agent has to reach a real
+backend.</p>
+<p>In any real company, that backend already exists, and it almost
+always exposes itself the same way: as an <strong>HTTP API</strong>.
+Enterprises run an <strong>order management system</strong> behind a
+REST service — <code>GET /orders/123</code>, <code>POST /orders</code>,
+and so on — often for years. The goal is never to <em>rebuild</em> it;
+it's to connect the agent to the API that's already there, cleanly,
+without copying the data or rewriting the business rules, so it can
+<em>perform the operation</em> the customer asked for: look up a live
+order, place a new one, cancel one.</p>
+<p>We'll do it the way the agentic world is converging on:
+<strong>MCP</strong>, the Model Context Protocol. MCP is an open
+standard — think of it as a universal adapter between agents and the
+systems they act on. An MCP server publishes a set of named, typed
+<strong>tools</strong>, and any AI agent (our WSO2 agent) can discover
+and call them without bespoke integration code. The order system stays
+where it is and keeps speaking plain HTTP; a small MCP service sits in
+front of its API and republishes its operations as MCP tools, knowing
+nothing about any agent. The agent connects as a single
 <strong>toolkit</strong> and instantly gains every tool it publishes —
-with no per-tool wiring. Add a tool to the service later, and the agent
-picks it up automatically.</li>
-</ul>
-<p>This is exactly the decoupling real systems need, and WSO2 Integrator
-has first-class support for both sides.</p>
+add a tool later and the agent picks it up automatically. WSO2
+Integrator has first-class support for every layer of this.</p>
+<p>To keep the tutorial focused on MCP, VoltMart's order system
+<strong>already exists</strong> — a real <strong>HTTP service</strong>
+exposing a REST API, ready to clone and run from GitHub, exactly the
+shape of backend you'd already have in production. We put an MCP service
+in front of <em>that API</em>. By the end, the same agent from part 1
+will look up live orders, create new ones, and cancel them, all by
+calling a real REST API over a generated HTTP client. No prior MCP
+experience needed.</p>
 <hr />
 <h2 id="what-we-are-going-to-build">What we are going to build</h2>
-<p>We'll build this in two halves, then join them:</p>
+<p>We'll focus on the two things you build — the MCP service and the
+agent wiring — on top of an order system that already exists:</p>
 <ol type="1">
-<li><strong>A VoltMart Orders MCP service</strong> — a standalone
-integration that exposes three tools over MCP, backed by a <strong>live
-PostgreSQL database running in Docker</strong>:
+<li><strong>VoltMart's order management system — an existing HTTP
+service.</strong> The backend the agent will ultimately act on, exposed
+the way real systems are: a REST API
+(<code>GET</code>/<code>POST</code>/<code>DELETE</code> on
+<code>/orders</code>). It enforces its own rules — including the
+<strong>ownership check</strong> that an order is only revealed to the
+email it belongs to — and knows nothing about AI. In a real company this
+API <em>already exists</em>, so we don't build it here: you'll
+<strong>clone it from GitHub and run it locally</strong> (or point Part
+B at your own order API instead).</li>
+<li><strong>A VoltMart Orders MCP service</strong> — the bridge that
+sits <em>in front of</em> that API. It calls the order service through a
+<strong>typed HTTP client generated from the API's OpenAPI
+contract</strong>, and republishes three order <em>operations</em> as
+MCP tools. It holds no data of its own — it's a thin adapter from HTTP
+to MCP.
 <ul>
-<li><code>getStatus</code> — look up an order's live status and ETA
-(with identity verification).</li>
+<li><code>getStatus</code> — look up an order's live status and
+ETA.</li>
 <li><code>createOrder</code> — place a new order.</li>
-<li><code>removeOrder</code> — cancel/remove an order (with identity
-verification).</li>
+<li><code>removeOrder</code> — cancel/remove an order.</li>
 </ul></li>
 <li><strong>The agent from part 1, now wired to that service</strong> —
 we add the orders service to the VoltMart agent as a single <strong>MCP
@@ -184,26 +186,31 @@ toolkit</strong>, so it gains all three tools at once.</li>
 <p>🖼️ <strong>[INSERT IMAGE HERE — VoltMart with MCP architecture: the
 customer chats with the AI agent; the agent uses its policy RAG tool
 plus an MCP toolkit; the toolkit speaks MCP to the standalone VoltMart
-Orders MCP service, which reads and writes a PostgreSQL database running
-in Docker.]</strong></p>
+Orders MCP service; that service calls the VoltMart order management
+HTTP API through a generated HTTP client; the order API reads and writes
+its own database.]</strong></p>
 </blockquote>
 <p>The agent keeps the policy RAG tool from part 1. Alongside it sits
 the <strong>MCP toolkit</strong> — the agent's connection to the orders
-service. When a customer asks about a live order, the agent calls a tool
-on the toolkit; the toolkit forwards the call over MCP to the
-<strong>orders service</strong>, which runs the real query against
-<strong>PostgreSQL</strong> and hands the answer back. The two
-integrations run as separate processes and could live on separate
-machines — they only share the MCP contract.</p>
+MCP service. When a customer asks about a live order, the agent calls a
+tool on the toolkit; the toolkit forwards the call over MCP to the
+<strong>orders MCP service</strong>, which calls the <strong>order
+management HTTP API</strong> through its generated client; the API runs
+the real query against its own database and the answer flows back up.
+Four layers, each one decoupled from the next — they share only a
+contract (MCP between the agent and the MCP service; the OpenAPI
+contract between the MCP service and the order API).</p>
 <blockquote>
-<p><strong>Companion code.</strong> You'll build everything below in the
-low-code editor. If you'd rather read or run the finished result, the
-complete projects are in the <a
+<p><strong>Companion code.</strong> You'll build the MCP service and
+wire up the agent below in the low-code editor. If you'd rather read or
+run the finished result, the complete projects are in the <a
 href="voltmart-orders-mcp"><code>voltmart-orders-mcp</code></a> folder —
-the orders MCP service (with its Docker setup) and the part-1 agent
-carried forward with the orders service connected. WSO2 Integrator keeps
-the visual flows and the underlying source in sync, so the projects
-there are exactly what the clicks below produce.</p>
+the orders MCP service (<code>orders-mcp-service</code>, with the
+generated client) and the part-1 agent carried forward
+(<code>voltmart-support</code>). The order management API lives in its
+own repo, which you clone in Part A. WSO2 Integrator keeps the visual
+flows and the underlying source in sync, so the projects there are
+exactly what the clicks below produce.</p>
 </blockquote>
 <hr />
 <h2 id="prerequisites">Prerequisites</h2>
@@ -212,128 +219,144 @@ installed, a WSO2 account, and the part-1 agent project — plus one new
 thing:</p>
 <ul>
 <li><strong>Docker Desktop</strong> (or any Docker engine with Compose).
-We use it to run PostgreSQL with zero manual setup. Install it from
+The order service you clone in Part A runs in Docker, so you'll need it
+to start that backend locally. Install it from
 <code>https://www.docker.com/products/docker-desktop/</code> and make
-sure <code>docker compose version</code> prints a version.</li>
+sure <code>docker compose version</code> prints a version. (Skip this if
+you're pointing at your own already-running order API.)</li>
 </ul>
 <hr />
-<h2 id="part-a--build-the-voltmart-orders-mcp-service">Part A — Build
+<h2 id="part-a--get-voltmarts-order-management-system-running">Part A —
+Get VoltMart's order management system running</h2>
+<blockquote>
+<p><strong>In your system, this part already exists.</strong> VoltMart's
+order API is a backend you'd already run in production, so we don't
+build it in this tutorial — we use a ready-made one. <strong>Already
+have an order API? Skip to Part B</strong> and point the HTTP client at
+your own service instead.</p>
+</blockquote>
+<p>The agent ultimately acts on VoltMart's <strong>order management
+system</strong>: a plain HTTP service exposing a REST API. The MCP
+service in Part B will only ever talk to this API — never its data store
+directly — exactly as it would against your real backend. The API
+exposes three operations on <code>/orders</code>:</p>
+<ul>
+<li><strong><code>GET /orders/{orderNumber}?email=…</code></strong> —
+look up an order. Returns <code>200</code> with the order,
+<code>404</code> if no order matches the number, or <code>403</code> if
+the email doesn't match the account the order belongs to.</li>
+<li><strong><code>POST /orders</code></strong> — create an order from
+<code>{ orderNumber, accountEmail, item }</code>. Returns
+<code>201</code> with the new order, or <code>409</code> if that number
+is already taken.</li>
+<li><strong><code>DELETE /orders/{orderNumber}?email=…</code></strong> —
+remove an order after the same ownership check. Returns
+<code>200</code>, <code>404</code>, or <code>403</code>.</li>
+</ul>
+<p>The one rule worth calling out is the <strong>ownership
+check</strong>: an order's details are only revealed — and an order is
+only removed — when the caller supplies the email the order belongs to
+(compared case-insensitively). That rule lives <em>in the API</em>, the
+system that owns the data, not in the agent's prompt or the MCP adapter,
+so it holds for every caller: our MCP service, a mobile app, a
+back-office tool. Each operation also returns its statuses as a
+<em>typed</em> contract (the order plus the
+<code>403</code>/<code>404</code>/<code>409</code> records), which is
+what lets the generated client in Part B branch on them with full type
+safety.</p>
+<h3 id="clone-and-run-it-locally">Clone and run it locally</h3>
+<p>Get the order service from [VoltMart Order Service](TODO: repo URL)
+and start it by following the steps in its README. It comes up on
+<strong><code>http://localhost:8080/orders</code></strong>, running in
+Docker (the one place you need it) and seeded with a few orders to work
+with.</p>
+<p>Once it's up, a quick check from the command line — no agent, no MCP,
+just HTTP — confirms it's live and that the ownership check works:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># A real order, with the matching email → 200 and the order</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-s</span> <span class="st">&quot;http://localhost:8080/orders/10432?email=jordan@example.com&quot;</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># The wrong email → 403, no details leak</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-s</span> <span class="at">-o</span> /dev/null <span class="at">-w</span> <span class="st">&quot;%{http_code}\n&quot;</span> <span class="st">&quot;http://localhost:8080/orders/10432?email=wrong@example.com&quot;</span></span></code></pre></div>
+<p>The first call returns order <code>10432</code> as JSON; the second
+prints <code>403</code>. That's the live backend the agent could never
+reach from a knowledge base — and the contract Part B will consume.</p>
+<p>[SCREENSHOT: A terminal showing the two curl calls and their
+responses.]</p>
+<hr />
+<h2 id="part-b--build-the-voltmart-orders-mcp-service">Part B — Build
 the VoltMart Orders MCP service</h2>
-<p>We'll build the orders service one layer at a time: first the live
-database, then the connection that reaches it, then the MCP service that
-exposes the three tools. Each layer is checked before we move on.</p>
-<h3 id="step-a1--create-the-orders-service-project">Step A.1 — Create
-the orders service project</h3>
-<p>The orders service is a <strong>separate integration</strong> from
-the agent — its own project, its own runtime. Keeping it separate is the
-whole point: it's an independent backend that just happens to speak
-MCP.</p>
+<p>With the order API in place (whether the one from Part A or your
+own), we now build the integration that sits <strong>in front
+of</strong> it and republishes its operations as MCP tools. We'll do it
+one layer at a time: first the project, then the <strong>HTTP
+client</strong> that reaches the order API, then the MCP service that
+publishes the three tools. Each layer is checked before we move on.</p>
+<h3 id="step-b1--create-the-orders-mcp-service-project">Step B.1 —
+Create the orders MCP service project</h3>
+<p>The MCP service is a <strong>separate integration</strong> from both
+the order API and the agent — its own project, its own runtime. Keeping
+it separate is the whole point: it's a thin adapter that turns an
+existing HTTP API into agent tools, without the order system knowing
+anything about it.</p>
 <ol type="1">
 <li>In WSO2 Integrator, create a new integration. Set
 <strong>Integration Name</strong> to <code>VoltMartOrders</code> and
-<strong>Project Name</strong> to <code>orders-service</code>.</li>
+<strong>Project Name</strong> to <code>orders-mcp-service</code>.</li>
 <li>Select <strong>Create Integration</strong>.</li>
 </ol>
 <p>[SCREENSHOT: The "Create New Integration" dialog for the
-orders-service project.]</p>
-<h3 id="step-a2--stand-up-the-live-database-in-docker">Step A.2 — Stand
-up the live database in Docker</h3>
-<p>In the real world VoltMart's orders live in a production database.
-We'll reproduce that locally with a throwaway
-<strong>PostgreSQL</strong> container — no installs, no manual schema
-setup. Two small files do the job.</p>
-<p>Create a <code>docker-compose.yml</code> at the root of the
-<code>orders-service</code> project:</p>
-<div class="sourceCode" id="cb1"><pre
-class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># A throwaway PostgreSQL instance that stands in for VoltMart&#39;s real order system.</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co"># `db/init.sql` is mounted into the image&#39;s init directory, so the table and seed</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co"># rows are created automatically the first time the container starts.</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co">#</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="co">#   docker compose up -d     # start the database</span></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="co">#   docker compose down -v    # stop it and wipe the data</span></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="fu">services</span><span class="kw">:</span></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">orders-db</span><span class="kw">:</span></span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">image</span><span class="kw">:</span><span class="at"> postgres:16</span></span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">container_name</span><span class="kw">:</span><span class="at"> voltmart-orders-db</span></span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">environment</span><span class="kw">:</span></span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">POSTGRES_USER</span><span class="kw">:</span><span class="at"> voltmart</span></span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">POSTGRES_PASSWORD</span><span class="kw">:</span><span class="at"> voltmart</span></span>
-<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">POSTGRES_DB</span><span class="kw">:</span><span class="at"> voltmart_orders</span></span>
-<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">ports</span><span class="kw">:</span></span>
-<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="st">&quot;5432:5432&quot;</span></span>
-<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">volumes</span><span class="kw">:</span></span>
-<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro</span></span>
-<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">healthcheck</span><span class="kw">:</span></span>
-<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">test</span><span class="kw">:</span><span class="at"> </span><span class="kw">[</span><span class="st">&quot;CMD-SHELL&quot;</span><span class="kw">,</span><span class="at"> </span><span class="st">&quot;pg_isready -U voltmart -d voltmart_orders&quot;</span><span class="kw">]</span></span>
-<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">interval</span><span class="kw">:</span><span class="at"> 5s</span></span>
-<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">timeout</span><span class="kw">:</span><span class="at"> 5s</span></span>
-<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">retries</span><span class="kw">:</span><span class="at"> </span><span class="dv">5</span></span></code></pre></div>
-<p>Then create <code>db/init.sql</code> — the schema plus three seed
-orders, so the agent has real data to look up the moment it
-connects:</p>
-<div class="sourceCode" id="cb2"><pre
-class="sourceCode sql"><code class="sourceCode sql"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- Schema + seed data for VoltMart&#39;s order database.</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co">-- Runs automatically the first time the Postgres container starts.</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> <span class="cf">IF</span> <span class="kw">NOT</span> <span class="kw">EXISTS</span> orders (</span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    order_number  TEXT <span class="kw">PRIMARY</span> <span class="kw">KEY</span>,</span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    account_email TEXT <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    item          TEXT <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- processing | shipped | delivered</span></span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    status        TEXT <span class="kw">NOT</span> <span class="kw">NULL</span> <span class="kw">DEFAULT</span> <span class="st">&#39;processing&#39;</span>,</span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    eta           TEXT <span class="kw">NOT</span> <span class="kw">NULL</span></span>
-<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>);</span>
-<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="kw">INSERT</span> <span class="kw">INTO</span> orders (order_number, account_email, item, status, eta) <span class="kw">VALUES</span></span>
-<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>    (<span class="st">&#39;10432&#39;</span>, <span class="st">&#39;jordan@example.com&#39;</span>, <span class="st">&#39;AirWave Pro wireless headphones&#39;</span>, <span class="st">&#39;shipped&#39;</span>,    <span class="st">&#39;arriving Thursday, 18 June 2026&#39;</span>),</span>
-<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    (<span class="st">&#39;10588&#39;</span>, <span class="st">&#39;priya@example.com&#39;</span>,  <span class="st">&#39;SoundDock 2 Bluetooth speaker&#39;</span>,   <span class="st">&#39;processing&#39;</span>, <span class="st">&#39;ships within 1 business day&#39;</span>),</span>
-<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    (<span class="st">&#39;10219&#39;</span>, <span class="st">&#39;sam@example.com&#39;</span>,    <span class="st">&#39;VoltBook 14 laptop&#39;</span>,              <span class="st">&#39;delivered&#39;</span>,  <span class="st">&#39;delivered on 9 June 2026&#39;</span>)</span>
-<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="kw">ON</span> CONFLICT (order_number) DO <span class="kw">NOTHING</span>;</span></code></pre></div>
-<p>Now start the database from the project root:</p>
-<div class="sourceCode" id="cb3"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> compose up <span class="at">-d</span></span></code></pre></div>
-<p>Give it a few seconds, then confirm the seed data is there:</p>
-<div class="sourceCode" id="cb4"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> exec <span class="at">-it</span> voltmart-orders-db <span class="dt">\</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  psql <span class="at">-U</span> voltmart <span class="at">-d</span> voltmart_orders <span class="at">-c</span> <span class="st">&quot;SELECT order_number, status FROM orders;&quot;</span></span></code></pre></div>
-<p>You should see the three orders listed. The database is live and
-waiting.</p>
-<blockquote>
-<p>💡 When you're done with the whole tutorial,
-<code>docker compose down -v</code> stops the container and wipes the
-data, so you always start from a clean slate next time.</p>
-</blockquote>
-<h3 id="step-a3--add-a-connection-to-the-database">Step A.3 — Add a
-connection to the database</h3>
-<p>Now switch back to WSO2 Integrator. Before the service can read or
-write orders, it needs a <strong>connection</strong> to the database —
-the low-code equivalent of "here's where the orders live and how to sign
-in."</p>
+orders-mcp-service project.]</p>
+<h3 id="step-b2--create-an-http-client-for-the-order-api">Step B.2 —
+Create an HTTP client for the order API</h3>
+<p>This service never touches the database — it calls the order API. The
+cleanest way to do that in WSO2 Integrator is to <strong>generate a
+typed client from the API's OpenAPI contract</strong>, so every
+operation becomes a named method with typed inputs and outputs. You can
+get that contract two ways: it ships in the order service repo as
+<code>orders_openapi.yaml</code>, and WSO2 Integrator can also produce
+it for you — open the order API project and it exposes the OpenAPI
+definition of the <code>/orders</code> service. Either way you end up
+with the same <code>orders_openapi.yaml</code>.</p>
+<p>Now create the client connection:</p>
 <ol type="1">
-<li>In the design view, select <strong>+ Add Artifact</strong>.</li>
-<li>Under <strong>Connections</strong> (the connector store), search for
-<strong>PostgreSQL</strong> and select it.</li>
-<li>In the <strong>Add New Connection</strong> form, fill in the same
-values you set in <code>docker-compose.yml</code>:
-<ul>
-<li><strong>Host:</strong> <code>localhost</code></li>
-<li><strong>Port:</strong> <code>5432</code></li>
-<li><strong>Username:</strong> <code>voltmart</code></li>
-<li><strong>Password:</strong> <code>voltmart</code></li>
-<li><strong>Database:</strong> <code>voltmart_orders</code></li>
-</ul></li>
-<li>Give the connection a name like <code>ordersDb</code> and select
-<strong>Create</strong>.</li>
+<li>In the <code>orders-mcp-service</code> design view, select <strong>+
+Add Artifact</strong>, then <strong>Connection</strong> under
+<strong>Other Artifacts</strong>.</li>
+<li>Choose <strong>Connect Via API Specification</strong> and provide
+the order API's OpenAPI file (<code>orders_openapi.yaml</code>).</li>
+<li>In the <strong>Create Connection</strong> step, expand
+<strong>Advanced Configurations</strong> and set the <strong>Service
+Url</strong> to where the order API runs —
+<code>http://localhost:8080/orders</code>.</li>
+<li>Enter a <strong>Connection Name</strong> like <code>ordersApi</code>
+and select <strong>Save Connection</strong>.</li>
 </ol>
-<p>[SCREENSHOT: The PostgreSQL "Add New Connection" form with the host,
-port, and database filled in.]</p>
+<p>WSO2 Integrator generates a fully typed client from the contract. Its
+remote methods are named after the API's operations —
+<code>getOrder</code>, <code>createOrder</code>,
+<code>removeOrder</code> — and they return the API's typed responses,
+including the <code>403</code>/<code>404</code>/<code>409</code> status
+records. In source, the generated client is initialized once and
+shared:</p>
+<pre class="ballerina"><code>import orders_mcp_service.ordersapi as api;
+
+configurable string ordersApiUrl = &quot;http://localhost:8080/orders&quot;;
+
+final api:Client ordersApi = check new (serviceUrl = ordersApiUrl);</code></pre>
+<p>[SCREENSHOT: The "Connect Via API Specification" flow importing the
+order API's OpenAPI file.]</p>
 <blockquote>
-<p>💡 WSO2 Integrator stores the connection in the project and keeps the
-secret values out of your source — you point at it by name from any
-flow. That one connection is what every order tool below will reuse to
-reach the live data.</p>
+<p>💡 Because the client is generated from the contract, the order API's
+shape is checked at build time. If the API adds a field or an operation,
+you regenerate the client and the compiler tells you exactly what
+changed — no hand-written URL strings to drift out of sync. See <a
+href="https://wso2.com/integration-platform/docs/develop/integration-artifacts/supporting/connections">Connections</a>
+and the <a
+href="https://wso2.com/integration-platform/docs/develop/tools/integration-tools/openapi-tool">OpenAPI
+tool</a> for the full reference.</p>
 </blockquote>
-<h3 id="step-a4--create-the-mcp-service">Step A.4 — Create the MCP
+<h3 id="step-b3--create-the-mcp-service">Step B.3 — Create the MCP
 service</h3>
 <p>This is the heart of the article. An <strong>MCP service</strong> is
 an integration artifact that publishes tools over the Model Context
@@ -360,17 +383,18 @@ reachable at <code>http://localhost:8290/mcp</code>.</li>
 listener, an empty <strong>Tools</strong> section with a <strong>+ Add
 Tool</strong> button, and <strong>Try It</strong> for testing. The three
 tools come next — each one is added the same way: fill a short form,
-then build its flow.</p>
+then build a flow that calls the <code>ordersApi</code> client and
+translates the result.</p>
 <p>[SCREENSHOT: The empty MCP Service editor showing the Tools section
 and the + Add Tool button.]</p>
 <p>See <a
 href="https://wso2.com/integration-platform/docs/genai/develop/mcp/overview">Exposing
 a service as MCP</a> for the full reference.</p>
-<h3 id="step-a5--add-the-getstatus-tool">Step A.5 — Add the
+<h3 id="step-b4--add-the-getstatus-tool">Step B.4 — Add the
 <code>getStatus</code> tool</h3>
-<p>Our first tool looks up an order's live status — but only after
-checking the customer's identity. This is the live order lookup part 1
-deliberately left out, now reading straight from the real database.</p>
+<p>Our first tool looks up an order's live status by calling the order
+API. This is the live order lookup part 1 deliberately left out, now
+reading through a real REST call.</p>
 <p><strong>Add the tool.</strong> In the MCP Service editor, click
 <strong>+ Add Tool</strong> and fill in the form:</p>
 <ol type="1">
@@ -380,8 +404,8 @@ name MCP clients see, so make it clear.</p></li>
 it's what the calling agent reads to decide <em>when</em> to use this
 tool, and the rule it must follow. Paste in:</p>
 <pre><code>Look up the current status and delivery ETA of a VoltMart order. You MUST pass BOTH the order number AND the account email. Details are returned ONLY when the email matches the order on file — that is the identity check. Returns VERIFICATION_FAILED if the email does not match, or ORDER_NOT_FOUND if no order matches the number. Never share details this tool did not return.</code></pre></li>
-<li><p><strong>Parameters:</strong> click <strong>+ Add
-Parameter</strong> twice and add two <code>string</code> parameters:</p>
+<li><p><strong>Parameters:</strong> add two <code>string</code>
+parameters:</p>
 <ul>
 <li><code>orderNumber</code> — <em>"The order number, e.g. 10432 (a
 leading # is fine)."</em></li>
@@ -392,142 +416,141 @@ VoltMart account."</em></li>
 line, or one of the <code>VERIFICATION_FAILED</code> /
 <code>ORDER_NOT_FOUND</code> signals.</p></li>
 <li><p>Select <strong>Save</strong>. WSO2 Integrator opens an
-<strong>empty flow diagram</strong> for the tool — this is where we look
-the order up and run the identity check.</p></li>
+<strong>empty flow diagram</strong> for the tool — this is where we call
+the API and map its response.</p></li>
 </ol>
-<p>Now build the flow. You have two ways to do it.</p>
-<p><strong>⚡ With WSO2 Integrator Copilot (fastest path).</strong>
-Click <strong>Generate with AI</strong> in the tool flow and describe
-the logic in plain English — for example: <em>"Look up
-<code>orderNumber</code> in the <code>ordersDb</code> PostgreSQL
-connection (the <code>orders</code> table, keyed by
-<code>order_number</code>). If no row matches, return
-<code>\"ORDER_NOT_FOUND\"</code>. Otherwise, if the row's
-<code>account_email</code> doesn't equal the <code>accountEmail</code>
-parameter, return <code>\"VERIFICATION_FAILED\"</code>. Otherwise return
-a sentence with the item, status, and ETA."</em> Review the generated
-flow and click <strong>Keep</strong>.</p>
-<p><strong>Prefer to place the nodes by hand?</strong> Build it on the
-flow line, node by node:</p>
+<p>Now build the flow. The pattern for every tool is the same:
+<strong>call the <code>ordersApi</code> client, then map each typed
+response to a string the agent understands.</strong> For
+<code>getStatus</code>:</p>
 <ol type="1">
-<li><strong>Look the order up.</strong> Click <strong>+</strong> → under
-<strong>Connections</strong>, select your <code>ordersDb</code>
-connection and choose its <strong>query</strong> action (the one that
-runs a <code>SELECT</code> and returns a row). Set the query to select
-the order whose <code>order_number</code> matches the
-<code>orderNumber</code> parameter, and bind the result to a variable
-named <code>order</code>.</li>
-<li><strong>Guard the unknown order.</strong> Click <strong>+</strong> →
-<strong>If</strong>, with a condition that checks whether the lookup
-found nothing. In the <strong>then</strong> branch, click
-<strong>+</strong> → <strong>Return</strong> and return
-<code>"ORDER_NOT_FOUND: No VoltMart order matches that number."</code> —
-an explicit signal the agent can act on, instead of a blank.</li>
-<li><strong>Verify identity.</strong> On the main line, click
-<strong>+</strong> → <strong>If</strong>, comparing
-<code>order.accountEmail</code> to the <code>accountEmail</code>
-parameter (case-insensitively). In the <strong>then</strong> branch,
-<strong>Return</strong>
-<code>"VERIFICATION_FAILED: That email does not match this order."</code>
-This is the rule the system prompt depends on, now enforced in the
-backend.</li>
-<li><strong>Return the status.</strong> After the check, click
-<strong>+</strong> → <strong>Return</strong> and return a status line
-built from the order, e.g.
+<li>Click <strong>+</strong> → under <strong>Connections</strong>,
+select <code>ordersApi</code> and choose its <strong>getOrder</strong>
+operation. Pass the <code>orderNumber</code> parameter and the
+<code>accountEmail</code> as the <code>email</code> query argument; bind
+the result to a variable.</li>
+<li>The order API already does the lookup and the ownership check, so
+the tool's job is just translation. Map the client's typed result:
+<ul>
+<li>On a <strong>200</strong> (<code>OrderOk</code>) — return a status
+line built from the order, e.g.
 <code>Order #10432 (AirWave Pro wireless headphones): status is "shipped", arriving Thursday, 18 June 2026.</code></li>
+<li>On a <strong>404</strong> (<code>ErrorMessageNotFound</code>) —
+return <code>"ORDER_NOT_FOUND: …"</code>, an explicit signal the agent
+can act on instead of a blank.</li>
+<li>On a <strong>403</strong> (<code>ErrorMessageForbidden</code>) —
+return <code>"VERIFICATION_FAILED: …"</code>. This is the rule the
+system prompt depends on, enforced in the backend and surfaced
+here.</li>
+</ul></li>
 </ol>
-<p>[SCREENSHOT: The getStatus tool flow — query node, two If guards, and
-the status Return.]</p>
+<p>WSO2 Integrator keeps the flow and the source in sync; the result
+is:</p>
+<pre class="ballerina"><code>remote isolated function getStatus(string orderNumber, string accountEmail) returns string|error {
+    api:OrderOk|api:ErrorMessageForbidden|api:ErrorMessageNotFound|api:ErrorPayloadInternalServerError|api:ErrorPayloadBadRequest|error result =
+        ordersApi-&gt;getOrder(orderNumber, email = accountEmail);
+    if result is api:OrderOk {
+        api:Order ord = result.body;
+        return string `Order #${ord.orderNumber} (${ord.item}): status is &quot;${ord.status}&quot;, ${ord.eta}.`;
+    }
+    if result is api:ErrorMessageNotFound {
+        return &quot;ORDER_NOT_FOUND: No VoltMart order matches that number. Do not guess a status.&quot;;
+    }
+    if result is api:ErrorMessageForbidden {
+        return &quot;VERIFICATION_FAILED: That email does not match this order. Do not share any order details.&quot;;
+    }
+    return error(&quot;Could not reach the VoltMart order service.&quot;);
+}</code></pre>
+<p>[SCREENSHOT: The getStatus tool flow — the ordersApi getOrder call
+and the response mapping.]</p>
 <blockquote>
-<p><strong>Why both a query node and an If check?</strong> The query
-reaches the live database; the identity <code>If</code> makes sure we
-never hand back another customer's order. Keeping that rule <em>inside
-the tool</em> means it holds no matter which client calls it — the
-agent, or anything else.</p>
+<p><strong>Why the MCP service is so thin.</strong> Notice there's no
+database query and no identity logic here — that all lives in the order
+API. The MCP service's only job is to translate between two worlds: it
+turns a typed HTTP response into the plain-string signals an LLM reasons
+about best. Keeping the business rule in the backend and the translation
+in the adapter is what lets either side change without touching the
+other.</p>
 </blockquote>
-<h3 id="step-a6--add-the-createorder-tool">Step A.6 — Add the
+<h3 id="step-b5--add-the-createorder-tool">Step B.5 — Add the
 <code>createOrder</code> tool</h3>
 <p>Back in the MCP Service editor, click <strong>+ Add Tool</strong>
 again:</p>
 <ol type="1">
 <li><p><strong>Name:</strong> <code>createOrder</code>.</p></li>
 <li><p><strong>Description:</strong></p>
-<pre><code>Create a new VoltMart order in the order database. Call this only when the customer has given you the account email and the item to order. The new order always starts in the &quot;processing&quot; status. Returns ORDER_EXISTS if an order with that number already exists.</code></pre></li>
+<pre><code>Create a new VoltMart order in the order system. Call this only when the customer has given you the account email and the item to order. The new order always starts in the &quot;processing&quot; status. Returns ORDER_EXISTS if an order with that number already exists.</code></pre></li>
 <li><p><strong>Parameters:</strong> three <code>string</code> parameters
 — <code>orderNumber</code>, <code>accountEmail</code>, and
 <code>item</code> (<em>"The product being ordered, e.g. AirWave Pro
 wireless headphones."</em>).</p></li>
 <li><p><strong>Return Type:</strong> <code>string</code>.</p></li>
-<li><p><strong>Save</strong>, then build the flow.</p></li>
+<li><p><strong>Save</strong>, then build the flow: call
+<code>ordersApi</code>'s <strong>createOrder</strong> operation with an
+order built from the three parameters, then map the result — a
+<strong>201</strong> (<code>OrderCreated</code>) becomes a confirmation
+line, a <strong>409</strong> (<code>ErrorMessageConflict</code>) becomes
+<code>"ORDER_EXISTS: …"</code>.</p></li>
 </ol>
-<p><strong>⚡ With Copilot:</strong> click <strong>Generate with
-AI</strong> and describe it — <em>"Check the <code>ordersDb</code>
-connection for an order with this <code>orderNumber</code>. If one
-exists, return <code>\"ORDER_EXISTS\"</code>. Otherwise insert a new row
-with the given order number, account email, and item, status
-<code>processing</code>, ETA <code>ships within 1 business day</code>,
-and return a confirmation line."</em> Review and
-<strong>Keep</strong>.</p>
-<p><strong>By hand:</strong> click <strong>+</strong> →
-<strong>Connections</strong> → <code>ordersDb</code> → the
-<strong>query</strong> action to check for an existing order →
-<strong>If</strong> it exists, <strong>Return</strong>
-<code>"ORDER_EXISTS: …"</code>; otherwise <strong>+</strong> →
-<strong>Connections</strong> → <code>ordersDb</code> → the
-<strong>execute</strong> action (the one that runs an
-<code>INSERT</code>) to add the new row, then <strong>Return</strong> a
-confirmation such as
-<code>Order #10644 created for VoltBuds Mini. Status: processing, ships within 1 business day.</code></p>
+<pre class="ballerina"><code>remote isolated function createOrder(string orderNumber, string accountEmail, string item)
+        returns string|error {
+    api:NewOrder newOrder = {orderNumber, accountEmail, item};
+    api:OrderCreated|api:ErrorMessageConflict|api:ErrorPayloadInternalServerError|api:ErrorPayloadBadRequest|error result =
+        ordersApi-&gt;createOrder(newOrder);
+    if result is api:OrderCreated {
+        api:Order ord = result.body;
+        return string `Order #${ord.orderNumber} created for ${ord.item}. Status: ${ord.status}, ${ord.eta}.`;
+    }
+    if result is api:ErrorMessageConflict {
+        return &quot;ORDER_EXISTS: An order with that number already exists. Pick a different number.&quot;;
+    }
+    return error(&quot;Could not reach the VoltMart order service.&quot;);
+}</code></pre>
 <blockquote>
 <p><strong>Note.</strong> To keep the tutorial simple, the order number
-is passed in as a parameter. A production service would generate it
+is passed in as a parameter. A production API would generate it
 server-side (a sequence or UUID) and return it, rather than trusting the
 caller to supply a unique one.</p>
 </blockquote>
-<h3 id="step-a7--add-the-removeorder-tool">Step A.7 — Add the
+<h3 id="step-b6--add-the-removeorder-tool">Step B.6 — Add the
 <code>removeOrder</code> tool</h3>
 <p>One more time — <strong>+ Add Tool</strong>:</p>
 <ol type="1">
 <li><p><strong>Name:</strong> <code>removeOrder</code>.</p></li>
 <li><p><strong>Description:</strong></p>
-<pre><code>Remove a VoltMart order from the order database. You MUST pass BOTH the order number AND the account email; the order is only removed when the email matches the order on file. Returns VERIFICATION_FAILED if it does not, or ORDER_NOT_FOUND if no order matches the number.</code></pre></li>
+<pre><code>Remove a VoltMart order from the order system. You MUST pass BOTH the order number AND the account email; the order is only removed when the email matches the order on file. Returns VERIFICATION_FAILED if it does not, or ORDER_NOT_FOUND if no order matches the number.</code></pre></li>
 <li><p><strong>Parameters:</strong> two <code>string</code> parameters —
 <code>orderNumber</code> and <code>accountEmail</code>.</p></li>
 <li><p><strong>Return Type:</strong> <code>string</code>.</p></li>
-<li><p><strong>Save</strong>, then build the flow.</p></li>
+<li><p><strong>Save</strong>, then build the flow. It's the same shape
+as <code>getStatus</code> — call <code>ordersApi</code>'s
+<strong>removeOrder</strong> operation, then map <strong>200</strong> to
+a removal confirmation, <strong>404</strong> to
+<code>ORDER_NOT_FOUND</code>, and <strong>403</strong> to
+<code>VERIFICATION_FAILED</code>. The order API enforces the ownership
+check before deleting, so the wrong email never removes a row.</p></li>
 </ol>
-<p><strong>⚡ With Copilot:</strong> <em>"Look the order up in
-<code>ordersDb</code>. Return <code>\"ORDER_NOT_FOUND\"</code> if it
-isn't there; return <code>\"VERIFICATION_FAILED\"</code> if its
-<code>account_email</code> doesn't match the <code>accountEmail</code>
-parameter; otherwise delete the row and return a confirmation
-line."</em> Review and <strong>Keep</strong>.</p>
-<p><strong>By hand:</strong> it's the same shape as
-<code>getStatus</code> — <strong>query</strong> to fetch the order, an
-<strong>If</strong> for <code>ORDER_NOT_FOUND</code>, an
-<strong>If</strong> comparing the email for
-<code>VERIFICATION_FAILED</code> — except the final step is the
-connection's <strong>execute</strong> action running a
-<code>DELETE</code>, followed by a <strong>Return</strong> confirming
-the removal.</p>
 <blockquote>
-<p>Notice the pattern across all three tools: fetch, guard with explicit
-signals, then act. The <code>VERIFICATION_FAILED</code> /
-<code>ORDER_NOT_FOUND</code> / <code>ORDER_EXISTS</code> strings are the
-same explicit-signal style as <code>NO_POLICY_FOUND</code> from part 1 —
-the agent reads them and responds sensibly instead of guessing.</p>
+<p>Notice the pattern across all three tools: <strong>call the API, then
+map each status to an explicit signal.</strong> The
+<code>VERIFICATION_FAILED</code> / <code>ORDER_NOT_FOUND</code> /
+<code>ORDER_EXISTS</code> strings are the same explicit-signal style as
+<code>NO_POLICY_FOUND</code> from part 1 — the agent reads them and
+responds sensibly instead of guessing. The HTTP status codes carry the
+meaning; the MCP tool turns them into words the model understands.</p>
 </blockquote>
-<h3 id="step-a8--run-the-mcp-service-and-verify-the-tools">Step A.8 —
+<h3 id="step-b7--run-the-mcp-service-and-verify-the-tools">Step B.7 —
 Run the MCP service and verify the tools</h3>
-<p>With the database already running from Step A.2, start the orders
+<p>With the database and the order API both running, start the MCP
 service with the <strong>Run</strong> button. It comes up on port
 <code>8290</code>, publishing the three tools at
 <code>http://localhost:8290/mcp</code>.</p>
 <p>You don't need the agent to test this. The quickest check is the
 editor's <strong>Try It</strong> panel, which lists the three tools and
 lets you invoke one directly — try <code>getStatus</code> with
-<code>10432</code> / <code>jordan@example.com</code> and watch it return
-the live status from PostgreSQL.</p>
+<code>10432</code> / <code>jordan@example.com</code> and watch the call
+travel through the HTTP client to the order API and back with the live
+status.</p>
 <p>Prefer the command line? Ask the server what tools it publishes:</p>
 <div class="sourceCode" id="cb8"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-s</span> <span class="at">-X</span> POST http://localhost:8290/mcp <span class="dt">\</span></span>
@@ -541,14 +564,14 @@ consume next.</p>
 <p>[SCREENSHOT: The MCP Service "Try It" panel invoking getStatus and
 showing the live result.]</p>
 <hr />
-<h2 id="part-b--connect-the-mcp-service-to-the-agent">Part B — Connect
+<h2 id="part-c--connect-the-mcp-service-to-the-agent">Part C — Connect
 the MCP service to the agent</h2>
-<p>Half the work is done: the orders service is live and publishing
-tools. Now we give the part-1 agent access to them. The beauty of MCP is
-that we <strong>don't</strong> add three tools one by one — we point the
-agent at the <em>service</em>, and it discovers every tool at once.</p>
+<p>The orders service is live and publishing tools. Now we give the
+part-1 agent access to them. The beauty of MCP is that we
+<strong>don't</strong> add three tools one by one — we point the agent
+at the <em>service</em>, and it discovers every tool at once.</p>
 <p>Reopen the <code>voltmart-support</code> agent from part 1.</p>
-<h3 id="step-b1--add-the-orders-service-as-an-mcp-server">Step B.1 — Add
+<h3 id="step-c1--add-the-orders-service-as-an-mcp-server">Step C.1 — Add
 the orders service as an MCP server</h3>
 <ol type="1">
 <li>Open the <strong>AI Chat Agent</strong> and click the <strong>AI
@@ -558,7 +581,7 @@ Server</strong>.</li>
 <li>In the <strong>Add MCP Server</strong> panel:
 <ul>
 <li><strong>Server URL:</strong> <code>http://localhost:8290/mcp</code>
-— the orders service from Part A.</li>
+— the orders MCP service from Part B.</li>
 <li><strong>Tools to Include:</strong> leave it at <strong>All</strong>
 (we want all three).</li>
 <li><strong>Info → name / version:</strong> an identifier for this
@@ -580,7 +603,7 @@ discovery is automatic, which is why adding a tool to the service later
 <p>See <a
 href="https://wso2.com/integration-platform/docs/genai/develop/mcp/overview">Consuming
 MCP from an agent</a> for more.</p>
-<h3 id="step-b2--update-the-agents-instructions">Step B.2 — Update the
+<h3 id="step-c2--update-the-agents-instructions">Step C.2 — Update the
 agent's instructions</h3>
 <p>The agent can now reach the order tools, but it still needs to know
 <em>when</em> to use them. Click the <strong>AI Agent</strong> node,
@@ -596,23 +619,23 @@ telling the agent it <em>can't</em> look up orders, and the one saying
 it can't change or cancel an order — since those capabilities now exist.
 Select <strong>Save</strong>.</p>
 <blockquote>
-<p><strong>Why the identity rule lives in two places.</strong> You'll
-notice the prompt asks the agent for the email <em>and</em> the MCP tool
-enforces the match. That's deliberate: the prompt makes for a good
-conversation (the agent asks first instead of failing), while the
-service enforces the rule no matter what any client does. Never trust
-the prompt alone for a security boundary — the backend is the source of
-truth.</p>
+<p><strong>Why the identity rule shows up in the prompt too.</strong>
+You'll notice the prompt asks the agent for the email <em>and</em> the
+order API enforces the match. That's deliberate: the prompt makes for a
+good conversation (the agent asks first instead of triggering a
+<code>403</code>), while the API enforces the rule no matter what any
+client does. Never trust the prompt alone for a security boundary — the
+backend is the source of truth.</p>
 </blockquote>
 <hr />
 <h2 id="take-it-for-a-spin">Take it for a spin</h2>
-<p>Make sure all three pieces are running: the <strong>Docker
-database</strong> (<code>docker compose up -d</code>), the
-<strong>orders MCP service</strong> (port 8290), and the
-<strong>agent</strong> (the <strong>Run</strong> button, port 9090).
-Then open the agent's <strong>Chat</strong> panel — or <code>curl</code>
-against <code>http://localhost:9090/voltMartAssistant/chat</code> as in
-part 1.</p>
+<p>Make sure everything is running: the <strong>order service</strong>
+(port 8080, started from its repo as in Part A), the <strong>orders MCP
+service</strong> (port 8290), and the <strong>agent</strong> (the
+<strong>Run</strong> button, port 9090). Then open the agent's
+<strong>Chat</strong> panel — or <code>curl</code> against
+<code>http://localhost:9090/voltMartAssistant/chat</code> as in part
+1.</p>
 <h4 id="sample-1--live-order-status-now-for-real">Sample 1 — Live order
 status (now for real)</h4>
 <p>The question the agent couldn't answer in part 1. Keep the
@@ -639,15 +662,16 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href=
 <span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;sessionId&quot;: &quot;mcp-1&quot;,</span></span>
 <span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;message&quot;: &quot;jordan@example.com&quot;</span></span>
 <span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="st">  }&#39;</span></span></code></pre></div>
-<p><strong>Output (turn 2 — live status, straight from
-PostgreSQL):</strong></p>
+<p><strong>Output (turn 2 — live status, straight from the order
+API):</strong></p>
 <div class="sourceCode" id="cb13"><pre
 class="sourceCode json"><code class="sourceCode json"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="st">&quot;Thanks! Order #10432 (AirWave Pro wireless headphones) has shipped and is arriving Thursday, 18 June 2026.&quot;</span></span>
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
 <p><em>Expected behavior:</em> the agent asks for the email, calls
-<code>getStatus</code> over MCP, and reports the status only after the
-email matches the row in the database.</p>
+<code>getStatus</code> over MCP, which calls <code>getOrder</code> on
+the order API, and reports the status only after the email matches the
+row in the database.</p>
 <h4 id="sample-2--place-a-new-order">Sample 2 — Place a new order</h4>
 <p><strong>Input:</strong></p>
 <div class="sourceCode" id="cb14"><pre
@@ -662,15 +686,15 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb14-1"><a href=
 class="sourceCode json"><code class="sourceCode json"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="st">&quot;Done! Order #10644 for the VoltBuds Mini is in — status: processing, ships within 1 business day.&quot;</span></span>
 <span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
-<p><em>Expected behavior:</em> calls <code>createOrder</code>; the new
-row is now in the database. Confirm it directly:</p>
+<p><em>Expected behavior:</em> calls <code>createOrder</code>, which
+<code>POST</code>s to the order API; the new row is now in the database.
+Confirm it straight through the order API:</p>
 <div class="sourceCode" id="cb16"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> exec <span class="at">-it</span> voltmart-orders-db <span class="dt">\</span></span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>  psql <span class="at">-U</span> voltmart <span class="at">-d</span> voltmart_orders <span class="at">-c</span> <span class="st">&quot;SELECT * FROM orders WHERE order_number = &#39;10644&#39;;&quot;</span></span></code></pre></div>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-s</span> <span class="st">&quot;http://localhost:8080/orders/10644?email=dana@example.com&quot;</span></span></code></pre></div>
 <h4 id="sample-3--identity-check-on-removal">Sample 3 — Identity check
 on removal</h4>
 <p>Try to cancel an order with the wrong email, and the service refuses
-— the rule is enforced in the backend, not just the prompt.</p>
+— the rule is enforced by the order API, not just the prompt.</p>
 <p><strong>Input:</strong></p>
 <div class="sourceCode" id="cb17"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-X</span> POST http://localhost:9090/voltMartAssistant/chat <span class="dt">\</span></span>
@@ -684,44 +708,76 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb17-1"><a href=
 class="sourceCode json"><code class="sourceCode json"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
 <span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="st">&quot;I wasn&#39;</span><span class="er">\&#39;</span><span class="st">&#39;t able to cancel that — the email doesn&#39;</span><span class="er">\&#39;</span><span class="st">&#39;t match the one on order #10219, so I can&#39;</span><span class="er">\&#39;</span><span class="st">&#39;t make changes to it. If you think this is a mistake, our support team can help, 8:00 AM – 8:00 PM ET.&quot;</span></span>
 <span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
-<p><em>Expected behavior:</em> calls <code>removeOrder</code>, gets
+<p><em>Expected behavior:</em> calls <code>removeOrder</code>; the order
+API returns <code>403</code>; the MCP tool maps it to
 <code>VERIFICATION_FAILED</code>, and the order stays in the database
 untouched.</p>
 <p>[SCREENSHOT: The Chat panel running Sample 1, with the trace showing
 the getStatus MCP call.]</p>
 <hr />
 <h2 id="what-just-happened">What just happened</h2>
-<p>Step back and look at what you built. The orders service knows
-nothing about AI — it's a plain integration over a database that happens
-to publish MCP tools. The agent knows nothing about PostgreSQL — it just
-sees four tools and reasons about when to call them. The only thing
-connecting them is the MCP contract and the single <strong>Use MCP
-Server</strong> step you clicked in Part B. That's the decoupling MCP
-buys you: either side can change independently, and the same orders
-service could back a second agent, a mobile app, or Claude Desktop
-without a single change.</p>
+<p>Step back and look at what you built. The agent no longer just
+<em>answers</em> about orders — it <em>acts</em> on them, reaching a
+real backend to look up, create, and cancel live data on the customer's
+behalf. And the way it does that is the whole point: four layers, each
+one ignorant of the others' internals. The <strong>order API</strong> is
+a plain HTTP service over a database — it knows nothing about AI, only
+orders and the rules that govern them. The <strong>MCP service</strong>
+knows nothing about PostgreSQL — it holds a generated client and
+translates HTTP responses into tool results. The <strong>agent</strong>
+knows nothing about either — it just sees four tools and reasons about
+when to call them. Between each pair sits a single contract: the OpenAPI
+definition between the MCP service and the API, and the MCP protocol
+between the agent and the MCP service.</p>
+<p>That layering is what makes it real. Swap the Docker database for the
+order system you already run in production and nothing above the API
+changes. Put the same order API behind a mobile app or a back-office
+tool and the MCP service doesn't care. Point a second agent — or Claude
+Desktop — at the MCP service and it gains all three tools for free. Each
+layer can change independently, because none of them reaches past its
+contract.</p>
 <h2 id="whats-next-in-the-series">What's next in the series</h2>
-<p>The agent can now read and write live order data, but when a customer
-wants to <em>return</em> something it still hits a wall — it can only
-point them at support. In <strong><strong>part 3</strong></strong> we
-close that gap: we add a <code>requestReturn</code> capability that lets
-the agent file a return on the customer's behalf and fires a
+<p>Your agent can now read and write <em>live</em> order data over MCP,
+through a real REST API behind a clean contract. That's a big step up
+from the policy-only agent you started part 2 with. But there's still a
+gap: when a customer wants to <em>return</em> something, the agent can
+only point them at support. The next two parts close that gap and then
+take the whole thing to production, building directly on the projects
+you just extended:</p>
+<ul>
+<li><strong>Part 3 — Act on a request, then push a live notification
+over a webhook.</strong> Right now the agent can't file a return. In
+part 3 we add a <code>requestReturn</code> capability that lets the
+agent file a return on the customer's behalf and fires a
 <strong>webhook</strong> the moment it does, pushing a live alert to the
 VoltMart returns team. Crucially, the agent files the request but never
 decides the outcome — which is what makes it a safe write to put in
-front of customers. As before, we'll build the capability as its own
-tool and then hand it to the same agent.</p>
-<p>A few directions to explore on your own first:</p>
+front of customers. As before, we build it as its own tool and hand it
+to this same agent. See <strong>Live notifications with
+webhooks</strong>.</li>
+<li><strong>Part 4 — Deploy it to WSO2 Cloud and observe it.</strong> In
+part 4 we take the finished agent (and the order API and MCP service it
+depends on) to production on <strong>WSO2 Cloud</strong>, switch it to a
+production model provider and a managed database, and
+<strong>observe</strong> every tool call and decision — with the
+dev-time agent trace viewer and the cloud's runtime logs, metrics,
+alerts, and traces. See <strong>Deploy and observe your AI agent on WSO2
+Cloud</strong>.</li>
+</ul>
+<p>And a few directions to explore on your own, beyond the series:</p>
 <ul>
 <li><strong>Add a fourth tool.</strong> Click <strong>+ Add
-Tool</strong> on the MCP service and add one more. Restart only the
-service — the agent picks it up with no changes, thanks to automatic
-tool discovery. (We'll do exactly this in part 3.)</li>
-<li><strong>Swap the database.</strong> Point the PostgreSQL connection
-at a managed database instead of the Docker one. Nothing else
-changes.</li>
-<li><strong>Secure the MCP endpoint.</strong> For anything beyond local
-development, put auth in front of the MCP service — see the <a
+Tool</strong> on the MCP service and add one more — perhaps fronting
+another order API operation. Restart only the MCP service — the agent
+picks it up with no changes, thanks to automatic tool discovery. (We'll
+do exactly this in part 3.)</li>
+<li><strong>Point at a real order API.</strong> Change the
+<code>ordersApi</code> client's <strong>Service Url</strong> to a
+managed order service instead of the local one. Nothing else in the MCP
+service or the agent changes.</li>
+<li><strong>Secure the endpoints.</strong> For anything beyond local
+development, put auth in front of both the order API and the MCP service
+— see the <a
 href="https://wso2.com/integration-platform/docs/genai/develop/agents/tools">tools
 documentation</a>.</li>
 </ul>
