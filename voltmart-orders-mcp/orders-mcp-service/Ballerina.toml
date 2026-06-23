@@ -1,0 +1,17 @@
+[package]
+org = "voltmart"
+name = "orders_mcp_service"
+version = "0.1.0"
+# Use the distribution that ships with your WSO2 Integrator install.
+# The IDE fills this in for you when it generates the project.
+distribution = "2201.12.0"
+
+[build-options]
+observabilityIncluded = true
+
+# This dependency is added automatically by the OpenAPI tool. DO NOT REMOVE UNLESS REQUIRED
+[[platform.java21.dependency]]
+groupId = "io.ballerina.openapi"
+artifactId = "client-native"
+version = "1.2.0"
+graalvmCompatible = true

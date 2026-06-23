@@ -1,6 +1,6 @@
 [package]
 org = "voltmart"
-name = "orders_mcp_service"
+name = "orders_api"
 version = "0.1.0"
 # Use the distribution that ships with your WSO2 Integrator install.
 # The IDE fills this in for you when it generates the project.

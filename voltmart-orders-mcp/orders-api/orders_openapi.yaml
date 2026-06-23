@@ -1,0 +1,218 @@
+openapi: 3.0.1
+info:
+  title: VoltMart Orders API
+  version: 0.1.0
+servers:
+- url: "{server}:{port}/orders"
+  variables:
+    server:
+      default: http://localhost
+    port:
+      default: "8080"
+paths:
+  /{orderNumber}:
+    get:
+      summary: |-
+        Look up an order by its number. The caller must supply the account email; the order is
+        returned only when the email matches the one on file — the ownership check that keeps one
+        customer from reading another's order.
+      operationId: getOrder
+      parameters:
+      - name: orderNumber
+        in: path
+        description: "The order number, e.g. \"10432\" (a leading '#' is accepted)"
+        required: true
+        schema:
+          type: string
+      - name: email
+        in: query
+        description: The email on the customer's VoltMart account
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        "500":
+          description: InternalServerError
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "404":
+          description: NotFound
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "400":
+          description: BadRequest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+    delete:
+      summary: |-
+        Remove an order. As with the lookup, the caller must supply the account email; the order is
+        only removed when it matches the one on file.
+      operationId: removeOrder
+      parameters:
+      - name: orderNumber
+        in: path
+        description: The order number to remove
+        required: true
+        schema:
+          type: string
+      - name: email
+        in: query
+        description: "The email on the customer's VoltMart account, used to verify\
+          \ ownership"
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        "500":
+          description: InternalServerError
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "404":
+          description: NotFound
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "400":
+          description: BadRequest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+  /:
+    post:
+      summary: |-
+        Create a new order. The new order always starts in the "processing" status. Returns 409 if an
+        order with the same number already exists.
+      operationId: createOrder
+      requestBody:
+        description: "The order number, account email, and item to order"
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewOrder'
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        "500":
+          description: InternalServerError
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "400":
+          description: BadRequest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+components:
+  schemas:
+    ErrorMessage:
+      required:
+      - message
+      type: object
+      properties:
+        message:
+          type: string
+      additionalProperties: false
+    ErrorPayload:
+      required:
+      - message
+      - method
+      - path
+      - reason
+      - status
+      - timestamp
+      type: object
+      properties:
+        timestamp:
+          type: string
+        status:
+          type: integer
+          format: int64
+        reason:
+          type: string
+        message:
+          type: string
+        path:
+          type: string
+        method:
+          type: string
+    NewOrder:
+      required:
+      - accountEmail
+      - item
+      - orderNumber
+      type: object
+      properties:
+        orderNumber:
+          type: string
+        accountEmail:
+          type: string
+        item:
+          type: string
+      additionalProperties: false
+    Order:
+      required:
+      - accountEmail
+      - eta
+      - item
+      - orderNumber
+      - status
+      type: object
+      properties:
+        orderNumber:
+          type: string
+        accountEmail:
+          type: string
+        item:
+          type: string
+        status:
+          type: string
+        eta:
+          type: string
+      additionalProperties: false

@@ -10,8 +10,8 @@ configurable string dbUser = "voltmart";
 configurable string dbPassword = "voltmart";
 configurable string dbName = "voltmart_orders";
 
-// One pooled client for the whole service. The order tools below all share it.
-// This is the "live backend" the agent could never reach from the knowledge base.
+// One pooled client for the whole service. The order resources below all share it.
+// This is the live order system the API sits in front of.
 final postgresql:Client ordersDb = check new (
     host = dbHost,
     port = dbPort,
@@ -21,7 +21,7 @@ final postgresql:Client ordersDb = check new (
 );
 
 // Fetch a single order by its number. Returns sql:NoRowsError when nothing matches —
-// the callers turn that into the friendly ORDER_NOT_FOUND signal.
+// the resource turns that into a 404.
 isolated function fetchOrder(string orderNumber) returns Order|sql:Error {
     return ordersDb->queryRow(`SELECT order_number  AS "orderNumber",
                                       account_email AS "accountEmail",
@@ -40,4 +40,10 @@ isolated function insertOrder(Order ord) returns sql:Error? {
 // Delete an order by its number.
 isolated function deleteOrder(string orderNumber) returns sql:Error? {
     _ = check ordersDb->execute(`DELETE FROM orders WHERE order_number = ${orderNumber}`);
+}
+
+// Customers say "#10432" and "10432" interchangeably; the database stores the bare number.
+isolated function normalize(string orderNumber) returns string {
+    string trimmed = orderNumber.trim();
+    return trimmed.startsWith("#") ? trimmed.substring(1) : trimmed;
 }

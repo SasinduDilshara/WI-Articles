@@ -1,8 +1,0 @@
-# Connection settings for the Dockerized PostgreSQL order database.
-# These match the credentials in docker-compose.yml. In production, keep real
-# secrets out of source control and inject them as environment variables instead.
-dbHost = "localhost"
-dbPort = 5432
-dbUser = "voltmart"
-dbPassword = "voltmart"
-dbName = "voltmart_orders"

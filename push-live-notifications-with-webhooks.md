@@ -320,12 +320,5 @@ make it real:
   production model provider and a managed database, and **observe** every tool call and decision — with
   the dev-time agent trace viewer and the cloud's runtime logs, metrics, alerts, and traces. See
   [Deploy and observe your AI agent on WSO2 Cloud](deploy-and-observe-on-wso2-cloud.md).
-
-And a few directions to explore on your own, beyond the series:
-
-- **Multiple subscribers.** A `return.requested` event rarely matters to just one team. Keep a list of webhook URLs and fan each event out — the returns desk, an inventory system that earmarks the restock, and an analytics pipeline, all at once, without the publisher knowing who's listening.
-- **Reliable delivery.** Real webhooks need retries with backoff and a dead-letter queue for events that never get through. WSO2 Integrator's [reliable messaging patterns](https://wso2.com/integration-platform/docs/) fit naturally here.
-- **Secure the webhook, and authorize the tools.** Sign each payload (HMAC) so the receiver can verify it really came from the orders service, and put auth in front of the MCP endpoint so privileged tools are reachable only by the right client. That's the proper backend boundary for anything more sensitive than filing a return — see the [tools documentation](https://wso2.com/integration-platform/docs/genai/develop/agents/tools).
-- **Close the loop back to the customer.** When the team approves the return, emit an event the other way — a webhook to a customer channel ("your return is approved, here's your prepaid label"). The same publisher/subscriber pattern, pointed the other direction.
-
+  
 ---
